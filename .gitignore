@@ -1,0 +1,28 @@
+.env
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*.so
+*.pyd
+
+# Virtual environment
+.venv/
+venv/
+
+
+# Alembic
+alembic/versions/*.pyc
+
+# VS Code
+.vscode/
+
+# macOS
+.DS_Store
+
+# pytest
+.pytest_cache/
+
+alembic.ini
+
+.idea

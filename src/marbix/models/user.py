@@ -1,0 +1,13 @@
+from sqlalchemy import Column, String, ForeignKey, DateTime, Text, JSON
+from sqlalchemy.orm import relationship
+from uuid import uuid4
+from datetime import date
+from dapmeet.db.db import Base
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(String, primary_key=True, index=True)
+    email = Column(String, unique=True, index=True, nullable=False)
+    password = Column(String, nullable=False)
+    name = Column(String)
