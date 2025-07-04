@@ -1,9 +1,11 @@
-from pydantic import BaseModel
+# src/marbix/schemas/user.py
+
+from pydantic import BaseModel, ConfigDict
 
 class UserOut(BaseModel):
-    name: str
+    id: str
     email: str
+    name: str
 
-    class Config:
-        orm_mode = True
-
+    # Pydantic v2: allow .from_orm() on SQLAlchemy models
+    model_config = ConfigDict(from_attributes=True)
