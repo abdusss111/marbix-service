@@ -2,7 +2,7 @@ from sqlalchemy import Column, String, ForeignKey, DateTime, Text, JSON
 from sqlalchemy.orm import relationship
 from uuid import uuid4
 from datetime import date
-from dapmeet.db.db import Base
+from marbix.db.base import Base
 
 class User(Base):
     __tablename__ = "users"
