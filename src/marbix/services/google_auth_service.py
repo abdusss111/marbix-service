@@ -1,6 +1,6 @@
 import os
 from dotenv import load_dotenv
-load_dotenv(dotenv_path=os.path.join(os.getcwd(), ".env"))
+load_dotenv()
 
 import httpx
 import jwt
@@ -9,7 +9,6 @@ from fastapi import HTTPException
 from marbix.models.user import User
 
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
-GOOGLE_CLIENT_ID_EXTENSION = os.getenv("GOOGLE_CLIENT_ID_EXTENSION")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
 GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI")
 JWT_SECRET = os.getenv("AUTH_SECRET", "secret-key")
@@ -32,8 +31,10 @@ async def exchange_code_for_token(code: str) -> str:
             },
             headers={"Content-Type": "application/x-www-form-urlencoded"}
         )
+        print(GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI)
 
     if token_resp.status_code != 200:
+        print(GOOGLE_REDIRECT_URI)
         raise HTTPException(
             status_code=400, 
             detail=f"Token exchange failed: {token_resp.text}"
@@ -162,7 +163,7 @@ def generate_jwt(user_info: dict) -> str:
     return jwt.encode(payload, JWT_SECRET, algorithm="HS256")
 
 
-async def authenticate_with_google_token(access_token: str, db: Session) -> tuple[User, str]:
+async def authenticate_with_google_token(code: str, db: Session) -> tuple[User, str]:
     """
     Полный flow аутентификации для Chrome Identity:
     1. Валидирует Google токен
@@ -174,7 +175,8 @@ async def authenticate_with_google_token(access_token: str, db: Session) -> tupl
     """
     try:
         # Получаем и валидируем user info
-        user_info = await validate_and_get_user_info(access_token)
+        access_token = await exchange_code_for_token(code)
+        user_info = await get_google_user_info(access_token)
         
         # Создаем/находим пользователя
         user = find_or_create_user(user_info, db)
