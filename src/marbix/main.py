@@ -7,7 +7,10 @@ import os
 load_dotenv(dotenv_path=os.path.join(os.getcwd(), ".env"))
 
 
-app = FastAPI()
+app = FastAPI(
+    title="Marbix API",
+    version="1.0.0",
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -16,7 +19,14 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+@app.get("/")
+async def root():
+    return {"message": "Marbix API is running"}
 
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy"}
+    
 app.include_router(main_router)
 
 
