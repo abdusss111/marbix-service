@@ -1,5 +1,5 @@
 # src/marbix/api/v1/make.py
-from fastapi import APIRouter, HTTPException, Depends, WebSocket
+from fastapi import APIRouter, HTTPException, Depends, WebSocket, Request
 import asyncio
 import logging
 
@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-@router.post("/strategy", response_model=ProcessingStatus)
+@router.post("/process", response_model=ProcessingStatus)
 async def process_request(
     request: MakeWebhookRequest,
     current_user: User = Depends(get_current_user)
@@ -32,17 +32,41 @@ async def process_request(
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/callback/{request_id}")
-async def handle_callback(request_id: str, response: MakeCallbackResponse):
-    """Handle callback from Make"""
+async def handle_callback(
+    request_id: str, 
+    request: Request
+):
+    """Handle callback from Make - accepts both JSON and plain text"""
     logger.info(f"Received callback for request_id: {request_id}")
     
     try:
+        content_type = request.headers.get("content-type", "")
+        
+        if "application/json" in content_type:
+            # JSON payload
+            data = await request.json()
+            if isinstance(data, dict):
+                result = data.get("result", "")
+                status = data.get("status", "completed")
+                error = data.get("error", None)
+            else:
+                # Just in case it's a JSON string
+                result = str(data)
+                status = "completed"
+                error = None
+        else:
+            # Plain text payload
+            result = await request.body()
+            result = result.decode("utf-8")
+            status = "completed"
+            error = None
+        
         # Update request status
         make_service.update_request_status(
             request_id=request_id,
-            result=response.result,
-            status=response.status,
-            error=response.error
+            result=result,
+            status=status,
+            error=error
         )
         
         # Send result through WebSocket if connected
