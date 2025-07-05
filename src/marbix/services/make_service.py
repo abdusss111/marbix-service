@@ -35,7 +35,7 @@ class MakeService:
         }
         
         # Prepare callback URL
-        callback_url = f"{self.api_base_url}/api/v1/make/callback/{request_id}"
+        callback_url = f"{self.api_base_url}/api/callback/{request_id}"
         
         # Create payload
         payload = MakeWebhookPayload(
