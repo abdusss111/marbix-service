@@ -6,8 +6,8 @@ from typing import Dict, Optional
 from datetime import datetime
 import logging
 
-from ..core.config import settings
-from ..schemas.make_integration import (
+from marbix.core.config import settings
+from marbix.schemas.make_integration import (
     MakeWebhookRequest,
     MakeWebhookPayload,
     ProcessingStatus

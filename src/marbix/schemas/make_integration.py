@@ -22,7 +22,6 @@ class MakeWebhookPayload(MakeWebhookRequest):
 
 class MakeCallbackResponse(BaseModel):
     """Response model from Make callback"""
-    request_id: str
     result: str
     status: str = "completed"
     error: Optional[str] = None

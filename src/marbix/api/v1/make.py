@@ -3,22 +3,22 @@ from fastapi import APIRouter, HTTPException, Depends, WebSocket
 import asyncio
 import logging
 
-from ...core.deps import get_current_user
-from ...core.websocket import manager
-from ...schemas.make_integration import (
+from marbix.core.deps import get_current_user
+from marbix.core.websocket import manager
+from marbix.schemas.make_integration import (
     MakeWebhookRequest,
     MakeCallbackResponse,
     ProcessingStatus,
     WebSocketMessage
 )
-from ...services.make_service import make_service
-from ...models.user import User
+from marbix.services.make_service import make_service
+from marbix.models.user import User
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter()
+router = APIRouter(prefix="/make", tags=["make"])
 
-@router.post("/strategy", response_model=ProcessingStatus)
+@router.post("/process", response_model=ProcessingStatus)
 async def process_request(
     request: MakeWebhookRequest,
     current_user: User = Depends(get_current_user)
