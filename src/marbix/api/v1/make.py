@@ -16,7 +16,7 @@ from marbix.models.user import User
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/make", tags=["make"])
+router = APIRouter()
 
 @router.post("/strategy", response_model=ProcessingStatus)
 async def process_request(
