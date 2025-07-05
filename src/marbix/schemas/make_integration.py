@@ -1,7 +1,9 @@
+
 # src/marbix/schemas/make_integration.py
-from pydantic import BaseModel
-from typing import Optional
+from pydantic import BaseModel, field_validator
+from typing import Optional, Union, Any
 from datetime import datetime
+import json
 
 class MakeWebhookRequest(BaseModel):
     """Request model for Make webhook integration"""
@@ -22,9 +24,23 @@ class MakeWebhookPayload(MakeWebhookRequest):
 
 class MakeCallbackResponse(BaseModel):
     """Response model from Make callback"""
-    result: str
+    result: Union[str, dict, Any]  # Accept any type for now
     status: str = "completed"
     error: Optional[str] = None
+    
+    @field_validator('result', mode='before')
+    def convert_result_to_string(cls, v):
+        """Convert any result to string"""
+        if isinstance(v, dict):
+            # If it's a dict with 'text' field, extract it
+            if 'text' in v:
+                return v['text']
+            # Otherwise convert whole dict to string
+            return json.dumps(v, ensure_ascii=False)
+        elif isinstance(v, str):
+            return v
+        else:
+            return str(v)
 
 class ProcessingStatus(BaseModel):
     """Status response for processing requests"""
