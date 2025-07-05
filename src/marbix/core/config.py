@@ -41,9 +41,8 @@ class Settings(BaseSettings):
     WEBHOOK_URL: str = Field(..., env="WEBHOOK_URL")
     MAKE_API_KEY: str = Field(..., env="MAKE_API_KEY")
     
-    # Make webhook settings
-    MAKE_WEBHOOK_URL: str = Field(..., env="MAKE_WEBHOOK_URL")
-    API_BASE_URL: str = Field(
+    # API base URL for callbacks
+    API_BASE_URL: Optional[str] = Field(
         "https://your-api.onrender.com",
         env="API_BASE_URL"
     )
