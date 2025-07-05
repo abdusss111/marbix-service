@@ -16,9 +16,9 @@ from marbix.models.user import User
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter()
+router = APIRouter(prefix="/make", tags=["make"])
 
-@router.post("/strategy", response_model=ProcessingStatus)
+@router.post("/process", response_model=ProcessingStatus)
 async def process_request(
     request: MakeWebhookRequest,
     current_user: User = Depends(get_current_user)
@@ -72,9 +72,9 @@ async def handle_callback(
         # Send result through WebSocket if connected
         message = WebSocketMessage(
             request_id=request_id,
-            status=response.status,
-            result=response.result,
-            error=response.error
+            status=status,
+            result=result,
+            error=error
         )
         
         await manager.send_message(request_id, message.dict())
