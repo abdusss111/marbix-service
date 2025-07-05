@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
-        extra_forbid=True,  # equivalent to extra="forbid"
+        extra="forbid",
         case_sensitive=False
     )
 
@@ -40,6 +40,29 @@ class Settings(BaseSettings):
     # Make.com webhook & API key
     WEBHOOK_URL: str = Field(..., env="WEBHOOK_URL")
     MAKE_API_KEY: str = Field(..., env="MAKE_API_KEY")
+    
+    # Make webhook settings
+    MAKE_WEBHOOK_URL: str = Field(..., env="MAKE_WEBHOOK_URL")
+    API_BASE_URL: str = Field(
+        "https://your-api.onrender.com",
+        env="API_BASE_URL"
+    )
+    
+    # WebSocket settings
+    WS_HEARTBEAT_INTERVAL: int = Field(
+        30,
+        env="WS_HEARTBEAT_INTERVAL"
+    )
+    WS_CONNECTION_TIMEOUT: int = Field(
+        300,
+        env="WS_CONNECTION_TIMEOUT"
+    )
+    
+    # Request cleanup
+    REQUEST_CLEANUP_DELAY: int = Field(
+        300,
+        env="REQUEST_CLEANUP_DELAY"
+    )
 
 # single, application‐wide settings instance
 settings = Settings()
