@@ -1,9 +1,11 @@
 # src/marbix/api/v1/make.py
 from fastapi import APIRouter, HTTPException, Depends, WebSocket, Request
+from sqlalchemy.orm import Session
 import asyncio
 import logging
 
 from marbix.core.deps import get_current_user
+from marbix.db.session import get_db
 from marbix.core.websocket import manager
 from marbix.schemas.make_integration import (
     MakeWebhookRequest,
@@ -34,7 +36,8 @@ async def process_request(
 @router.post("/callback/{request_id}")
 async def handle_callback(
     request_id: str, 
-    request: Request
+    request: Request,
+    db: Session = Depends(get_db)
 ):
     """Handle callback from Make - accepts both JSON and plain text"""
     logger.info(f"Received callback for request_id: {request_id}")
@@ -44,29 +47,37 @@ async def handle_callback(
         
         if "application/json" in content_type:
             # JSON payload
-            data = await request.json()
-            if isinstance(data, dict):
-                result = data.get("result", "")
-                status = data.get("status", "completed")
-                error = data.get("error", None)
-            else:
-                # Just in case it's a JSON string
-                result = str(data)
+            try:
+                data = await request.json()
+                if isinstance(data, dict):
+                    result = data.get("result", "")
+                    status = data.get("status", "completed")
+                    error = data.get("error", None)
+                else:
+                    result = str(data)
+                    status = "completed"
+                    error = None
+            except Exception as e:
+                logger.error(f"JSON parse error: {e}")
+                # Try to get raw body
+                body = await request.body()
+                result = body.decode("utf-8", errors="ignore")
                 status = "completed"
                 error = None
         else:
             # Plain text payload
-            result = await request.body()
-            result = result.decode("utf-8")
+            body = await request.body()
+            result = body.decode("utf-8", errors="ignore")
             status = "completed"
             error = None
         
-        # Update request status
+        # Update request status in database
         make_service.update_request_status(
             request_id=request_id,
             result=result,
             status=status,
-            error=error
+            error=error,
+            db=db
         )
         
         # Send result through WebSocket if connected
@@ -94,10 +105,11 @@ async def handle_callback(
 @router.get("/status/{request_id}", response_model=ProcessingStatus)
 async def get_status(
     request_id: str,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     """Get status of a request (fallback for WebSocket)"""
-    status = make_service.get_request_status(request_id)
+    status = make_service.get_request_status(request_id, db)
     
     if not status:
         raise HTTPException(status_code=404, detail="Request not found")
@@ -110,8 +122,11 @@ async def websocket_endpoint(websocket: WebSocket, request_id: str):
     await manager.connect(websocket, request_id)
     
     try:
+        # Get DB session for checking status
+        db = next(get_db())
+        
         # Check if result already available
-        status = make_service.get_request_status(request_id)
+        status = make_service.get_request_status(request_id, db)
         
         if not status:
             await websocket.send_json({

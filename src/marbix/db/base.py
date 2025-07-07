@@ -1,6 +1,7 @@
 from sqlalchemy import MetaData
 from sqlalchemy.orm import declarative_base
-
+from marbix.models.user import User
+from marbix.models.make_request import MakeRequest  # Добавьте эту строку
 # Naming convention ensures consistent names for constraints/indexes,
 # which is especially useful for Alembic autogeneration.
 naming_convention = {
