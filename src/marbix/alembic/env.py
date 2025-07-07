@@ -7,7 +7,7 @@ from alembic import context
 # 1) Import your Base and all models so metadata is populated
 from marbix.db.base import Base
 import marbix.models.user  # add any additional model modules here
-
+import marbix.models.make_request  # add any additional model modules here
 # 2) Alembic Config object, provides access to values from alembic.ini
 config = context.config
 

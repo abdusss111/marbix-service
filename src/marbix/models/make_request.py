@@ -2,7 +2,6 @@
 from sqlalchemy import Column, String, Text, DateTime, JSON
 from sqlalchemy.sql import func
 from marbix.db.base import Base
-from datetime import datetime, timedelta  # Добавьте timedelta
 
 class MakeRequest(Base):
     __tablename__ = "make_requests"
