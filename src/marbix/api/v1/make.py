@@ -4,7 +4,8 @@ from sqlalchemy.orm import Session
 import asyncio
 import logging
 
-from marbix.core.deps import get_current_user, get_db
+from marbix.core.deps import get_current_user
+from marbix.db.session import get_db
 from marbix.core.websocket import manager
 from marbix.schemas.make_integration import (
     MakeWebhookRequest,
@@ -17,17 +18,16 @@ from marbix.models.user import User
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter()
+router = APIRouter(prefix="/make", tags=["make"])
 
-@router.post("/strategy", response_model=ProcessingStatus)
+@router.post("/process", response_model=ProcessingStatus)
 async def process_request(
     request: MakeWebhookRequest,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: User = Depends(get_current_user)
 ):
     """Initiate processing with Make webhook"""
     try:
-        status = await make_service.send_to_make(request, current_user.id, db)
+        status = await make_service.send_to_make(request)
         return status
     except Exception as e:
         logger.error(f"Error processing request: {str(e)}")
@@ -90,8 +90,8 @@ async def handle_callback(
         
         await manager.send_message(request_id, message.dict())
         
-        # Schedule cleanup
-        asyncio.create_task(make_service.cleanup_request(request_id))
+        # Schedule cleanup - removed as method doesn't exist
+        # asyncio.create_task(make_service.cleanup_request(request_id))
         
         return {"status": "ok", "message": "Callback processed"}
         
