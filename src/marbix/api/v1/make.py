@@ -23,11 +23,12 @@ router = APIRouter()
 @router.post("/strategy", response_model=ProcessingStatus)
 async def process_request(
     request: MakeWebhookRequest,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     """Initiate processing with Make webhook"""
     try:
-        status = await make_service.send_to_make(request)
+        status = await make_service.send_to_make(request, current_user.id, db)
         return status
     except Exception as e:
         logger.error(f"Error processing request: {str(e)}")
