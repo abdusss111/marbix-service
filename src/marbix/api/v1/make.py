@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/make", tags=["make"])
 
-@router.post("/process", response_model=ProcessingStatus)
+@router.post("/strategy", response_model=ProcessingStatus)
 async def process_request(
     request: MakeWebhookRequest,
     current_user: User = Depends(get_current_user)
