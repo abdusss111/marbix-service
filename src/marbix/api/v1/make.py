@@ -4,8 +4,7 @@ from sqlalchemy.orm import Session
 import asyncio
 import logging
 
-from marbix.core.deps import get_current_user
-from marbix.db.session import get_db
+from marbix.core.deps import get_current_user, get_db
 from marbix.core.websocket import manager
 from marbix.schemas.make_integration import (
     MakeWebhookRequest,

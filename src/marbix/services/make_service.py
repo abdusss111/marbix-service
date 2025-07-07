@@ -8,7 +8,7 @@ import logging
 from sqlalchemy.orm import Session
 
 from marbix.core.config import settings
-from marbix.db.session import get_db
+from marbix.core.deps import get_db
 from marbix.models.make_request import MakeRequest
 from marbix.schemas.make_integration import (
     MakeWebhookRequest,
