@@ -4,7 +4,6 @@ from marbix.core.deps import get_current_user, get_db
 from marbix.models.user import User
 from marbix.schemas.strategy import StrategyListItem
 from marbix.models.make_request import MakeRequest
-from marbix.core.logging import logger
 from typing import List
 
 router = APIRouter()
@@ -48,5 +47,5 @@ async def get_user_strategies(
         return result
         
     except Exception as e:
-        logger.error(f"Error getting user strategies: {str(e)}")
+        print(f"Error getting user strategies: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to retrieve strategies")
