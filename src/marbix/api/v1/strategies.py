@@ -1,7 +1,10 @@
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
 from marbix.core.deps import get_current_user, get_db
+from marbix.models.user import User
 from marbix.schemas.strategy import StrategyListItem
+from marbix.models.make_request import MakeRequest
+from marbix.core.logging import logger
 from typing import List
 
 router = APIRouter()
