@@ -9,3 +9,4 @@ api_router = APIRouter()
 # mount sub‑routers under their own prefixes
 api_router.include_router(auth_router, prefix="/auth", tags=["auth"])
 api_router.include_router(make_router, prefix="/api", tags=["strategy"])
+api_router.include_router(strategy_router, prefix="/api", tags=["strategies"])
