@@ -3,6 +3,7 @@ from fastapi import APIRouter
 # import individual routers
 from .auth import router as auth_router
 from .make import router as make_router
+from .strategies import router as strategy_router
 # create a unified router for /api/v1
 api_router = APIRouter()
 
