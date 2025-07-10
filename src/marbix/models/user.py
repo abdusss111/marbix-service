@@ -4,6 +4,9 @@ from uuid import uuid4
 from datetime import date
 from marbix.db.base import Base
 
+from sqlalchemy import Enum as SqlEnum
+from marbix.models.role import UserRole
+
 class User(Base):
     __tablename__ = "users"
 
@@ -11,3 +14,5 @@ class User(Base):
     email = Column(String, unique=True, index=True, nullable=False)
     name = Column(String)
     number = Column(String, nullable=False)
+    password = Column(String, nullable=True)
+    role = Column(SqlEnum(UserRole), default=UserRole.USER, nullable=False)

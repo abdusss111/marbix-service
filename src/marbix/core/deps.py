@@ -10,7 +10,8 @@ from marbix.crud.user import get_user_by_id
 from marbix.schemas.user import UserOut
 
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+oauth2_scheme_admin = OAuth2PasswordBearer(tokenUrl="/admin/login")
 
 
 def get_db() -> Generator[Session, None, None]:
@@ -55,3 +56,21 @@ async def get_current_user(
 
     return user
 
+
+async def get_current_admin(token: str = Depends(oauth2_scheme_admin), db: Session = Depends(get_db)) -> User:
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
+        user_id = payload.get("sub")
+        role = payload.get("role")
+
+        if not user_id or role != UserRole.ADMIN.value:
+            raise HTTPException(status_code=403, detail="Not authorized")
+
+        admin = db.query(User).filter(User.id == user_id, User.role == UserRole.ADMIN).first()
+        if not admin:
+            raise HTTPException(status_code=404, detail="Admin not found")
+
+        return admin
+
+    except JWTError:
+        raise HTTPException(status_code=403, detail="Invalid token")
