@@ -16,9 +16,9 @@ def authenticate_admin(email: str, password: str, db: Session) -> str:
     Authenticates admin by email and password. Returns JWT if valid.
     """
     admin = db.query(User).filter(User.email == email, User.role == UserRole.ADMIN).first()
-    print("user.role:", admin.role)
-    print("expected:", UserRole.ADMIN)
-    print("equal?", admin.role == UserRole.ADMIN)
+    
+    print(pwd_context.verify(password, admin.password))
+    print(password, admin.password)
 
     if not admin or not admin.password or not pwd_context.verify(password, admin.password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
