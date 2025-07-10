@@ -59,7 +59,7 @@ async def get_current_user(
 
 async def get_current_admin(token: str = Depends(oauth2_scheme_admin), db: Session = Depends(get_db)) -> User:
     try:
-        payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
+        payload = jwt.decode(token, settings.AUTH_SECRET, algorithms=["HS256"])
         user_id = payload.get("sub")
         role = payload.get("role")
 
@@ -72,5 +72,5 @@ async def get_current_admin(token: str = Depends(oauth2_scheme_admin), db: Sessi
 
         return admin
 
-    except jwt.PyJWTError::
+    except jwt.PyJWTError:
         raise HTTPException(status_code=403, detail="Invalid token")
