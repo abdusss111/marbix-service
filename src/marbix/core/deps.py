@@ -3,7 +3,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 import jwt
-
+from jose import JWTError, jwt
 from marbix.db.session import SessionLocal
 from marbix.core.config import settings
 from marbix.crud.user import get_user_by_id
@@ -12,6 +12,7 @@ from marbix.models.user import User
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 oauth2_scheme_admin = OAuth2PasswordBearer(tokenUrl="/admin/login")
+JWT_SECRET = os.getenv("AUTH_SECRET")
 
 
 def get_db() -> Generator[Session, None, None]:
