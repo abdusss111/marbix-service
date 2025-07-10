@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from passlib.context import CryptContext
 from marbix.models.user import User
 from marbix.models.make_request import MakeRequest
-from marbix.models.models import UserRole
+from marbix.models.role import UserRole
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 JWT_SECRET = os.getenv("AUTH_SECRET", "secret-key")
