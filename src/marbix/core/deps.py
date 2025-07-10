@@ -11,7 +11,6 @@ from marbix.models.user import User
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 oauth2_scheme_admin = OAuth2PasswordBearer(tokenUrl="/admin/login")
-JWT_SECRET = os.getenv("AUTH_SECRET")
 
 
 def get_db() -> Generator[Session, None, None]:
