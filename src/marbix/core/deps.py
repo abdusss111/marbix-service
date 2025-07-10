@@ -3,7 +3,6 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 import jwt
-from jose import JWTError, jwt
 from marbix.db.session import SessionLocal
 from marbix.core.config import settings
 from marbix.crud.user import get_user_by_id
@@ -73,5 +72,5 @@ async def get_current_admin(token: str = Depends(oauth2_scheme_admin), db: Sessi
 
         return admin
 
-    except JWTError:
+    except jwt.PyJWTError::
         raise HTTPException(status_code=403, detail="Invalid token")
