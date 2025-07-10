@@ -8,7 +8,7 @@ from marbix.db.session import SessionLocal
 from marbix.core.config import settings
 from marbix.crud.user import get_user_by_id
 from marbix.schemas.user import UserOut
-
+from marbix.models.user import User
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 oauth2_scheme_admin = OAuth2PasswordBearer(tokenUrl="/admin/login")
