@@ -7,6 +7,7 @@ from marbix.models.user import User
 from marbix.schemas.strategy import StrategyListItem
 from marbix.schemas.user import UserOut
 from typing import List
+from marbix.models.make_request import MakeRequest
 
 router = APIRouter()
 
