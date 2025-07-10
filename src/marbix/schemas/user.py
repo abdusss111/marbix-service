@@ -6,6 +6,6 @@ class UserOut(BaseModel):
     id: str
     email: str
     name: str
-    number: str
+    number: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
