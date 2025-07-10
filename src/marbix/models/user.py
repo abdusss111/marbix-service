@@ -10,3 +10,4 @@ class User(Base):
     id = Column(String, primary_key=True, index=True)
     email = Column(String, unique=True, index=True, nullable=False)
     name = Column(String)
+    number = Column(String, nullable=False)

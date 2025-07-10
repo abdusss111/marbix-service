@@ -28,11 +28,17 @@ async def process_request(
 ):
     """Initiate processing with Make webhook"""
     try:
+        current_user.user_number = request.user_number
+        db.add(current_user)
+        db.commit()
+        db.refresh(current_user)
+
         status = await make_service.send_to_make(request, current_user.id, db)
         return status
     except Exception as e:
         logger.error(f"Error processing request: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.post("/callback/{request_id}")
 async def handle_callback(

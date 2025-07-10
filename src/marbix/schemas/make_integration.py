@@ -11,6 +11,7 @@ class MakeWebhookRequest(BaseModel):
     current_volume: str
     product_data: str
     target_audience_info: str
+    user_number: str
     competitors: Optional[str] = None
     actions: Optional[str] = None
     marketing_budget: Optional[str] = None

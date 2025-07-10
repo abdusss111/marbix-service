@@ -8,6 +8,7 @@ class MakeRequest(Base):
     
     request_id = Column(String, primary_key=True, index=True)
     user_id = Column(String, nullable=False)
+    user_number = Column(String, nullable=False)
     status = Column(String, default="processing")
     request_data = Column(JSON)
     result = Column(Text, nullable=True)
