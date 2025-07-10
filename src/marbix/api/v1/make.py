@@ -28,7 +28,7 @@ async def process_request(
 ):
     """Initiate processing with Make webhook"""
     try:
-        current_user.user_number = request.user_number
+        current_user.number = request.user_number
         db.add(current_user)
         db.commit()
         db.refresh(current_user)
