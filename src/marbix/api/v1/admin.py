@@ -5,6 +5,8 @@ from marbix.core.deps import get_db, get_current_admin
 from marbix.services import admin_service
 from marbix.models.user import User
 from marbix.models.make_request import MakeRequest
+from marbix.schemas.user import UserOut
+from typing import List
 
 router = APIRouter()
 
@@ -15,16 +17,16 @@ def login_admin(data: AdminLoginRequest, db: Session = Depends(get_db)):
     return {"access_token": token}
 
 
-@router.get("/users", response_model=list[User])
+@router.get("/users", response_model=List[UserOut])
 def get_all_users(admin: User = Depends(get_current_admin), db: Session = Depends(get_db)):
     return admin_service.get_all_users(db)
 
 
-@router.get("/users/{user_id}", response_model=User)
+@router.get("/users/{user_id}", response_model=UserOut)
 def get_user_by_id(user_id: str, admin: User = Depends(get_current_admin), db: Session = Depends(get_db)):
     return admin_service.get_user_by_id(user_id, db)
 
 
-@router.get("/users/{user_id}/strategies", response_model=list[MakeRequest])
+@router.get("/users/{user_id}/strategies", response_model=List[MakeRequest])
 def get_user_strategies(user_id: str, admin: User = Depends(get_current_admin), db: Session = Depends(get_db)):
     return admin_service.get_user_strategies(user_id, db)

@@ -6,6 +6,6 @@ class UserOut(BaseModel):
     id: str
     email: str
     name: str
+    number: str
 
-    # Pydantic v2: allow .from_orm() on SQLAlchemy models
     model_config = ConfigDict(from_attributes=True)
