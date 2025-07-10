@@ -1,7 +1,7 @@
 # src/marbix/schemas/user.py
 
 from pydantic import BaseModel, ConfigDict
-
+from typing import Optional
 class UserOut(BaseModel):
     id: str
     email: str
