@@ -42,7 +42,7 @@ def get_all_users(db: Session):
     """
     Returns list of users (excluding admins).
     """
-    return db.query(User).filter(User.role == UserRole.USER).all()
+    return db.query(User).all()
 
 
 def get_user_by_id(user_id: str, db: Session):
