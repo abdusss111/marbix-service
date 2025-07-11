@@ -2,6 +2,7 @@ import os
 import jwt
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
+from sqlalchemy import desc
 from passlib.context import CryptContext
 from marbix.models.user import User
 from marbix.models.make_request import MakeRequest
@@ -42,7 +43,7 @@ def get_all_users(db: Session):
     """
     Returns list of users (excluding admins).
     """
-    return db.query(models.User).order_by(desc(models.User.created_at)).all()
+    return db.query(User).order_by(desc(models.User.created_at)).all()
 
 
 def get_user_by_id(user_id: str, db: Session):
