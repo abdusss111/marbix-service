@@ -1,7 +1,7 @@
 from sqlalchemy import Column, String, ForeignKey, DateTime, Text, JSON
 from sqlalchemy.orm import relationship
 from uuid import uuid4
-from datetime import date
+from datetime import datetime
 from marbix.db.base import Base
 
 from sqlalchemy import Enum as SqlEnum
@@ -16,4 +16,4 @@ class User(Base):
     number = Column(String, nullable=False)
     password = Column(String, nullable=True)
     role = Column(SqlEnum(UserRole), default=UserRole.USER, nullable=False)
-    created_at = Column(DateTime, nullable=False, default=date.today)
+    created_at = Column(DateTime, nullable=False, default=datetime.now)
