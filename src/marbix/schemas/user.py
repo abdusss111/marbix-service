@@ -7,5 +7,5 @@ class UserOut(BaseModel):
     email: str
     name: str
     number: Optional[str] = None
-
+    created_at: str
     model_config = ConfigDict(from_attributes=True)

@@ -16,3 +16,4 @@ class User(Base):
     number = Column(String, nullable=False)
     password = Column(String, nullable=True)
     role = Column(SqlEnum(UserRole), default=UserRole.USER, nullable=False)
+    created_at = Column(DateTime, nullable=False, default=date.today)
