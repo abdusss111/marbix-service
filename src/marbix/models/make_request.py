@@ -14,3 +14,4 @@ class MakeRequest(Base):
     error = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     completed_at = Column(DateTime(timezone=True), nullable=True)
+    sources = Column(Text, nullable=True)

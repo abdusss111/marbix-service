@@ -40,7 +40,8 @@ async def get_user_strategies(
                 status=strategy.status,
                 created_at=strategy.created_at,
                 completed_at=strategy.completed_at,
-                result=strategy.result or ""
+                result=strategy.result or "",
+                sources=strategy.sources or ""
             )
             result.append(item)
         

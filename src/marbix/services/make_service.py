@@ -95,7 +95,7 @@ class MakeService:
                 db.commit()
                 raise
     
-    def update_request_status(self, request_id: str, result: str, 
+    def update_request_status(self, request_id: str, result: str, sources: str, 
                             status: str = "completed", error: Optional[str] = None,
                             db: Session = None):
         """Update the status of a request in database"""
@@ -104,6 +104,7 @@ class MakeService:
         if not request:
             raise ValueError(f"Request {request_id} not found")
         
+        request.sources = sources
         request.status = status
         request.result = result
         request.completed_at = datetime.utcnow()

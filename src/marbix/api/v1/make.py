@@ -58,6 +58,7 @@ async def handle_callback(
                 data = await request.json()
                 if isinstance(data, dict):
                     result = data.get("result", "")
+                    sources = data.get("sources", "")
                     status = data.get("status", "completed")
                     error = data.get("error", None)
                 else:
