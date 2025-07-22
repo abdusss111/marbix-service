@@ -69,7 +69,7 @@ async def get_strategy_by_id(
         raise HTTPException(status_code=404, detail="Strategy not found")
 
     data = strategy.request_data or {}
-    return StrategyDetail(
+    return StrategyItem(
         request_id=strategy.request_id,
         business_type=data.get("business_type", ""),
         business_goal=data.get("business_goal", ""),
