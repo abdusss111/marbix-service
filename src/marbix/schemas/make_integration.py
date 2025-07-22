@@ -25,6 +25,7 @@ class MakeCallbackResponse(BaseModel):
     """Response model from Make callback"""
     result: str
     status: str = "completed"
+    source: str
     error: Optional[str] = None
 
 class ProcessingStatus(BaseModel):
