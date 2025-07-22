@@ -3,7 +3,7 @@ from fastapi import APIRouter, HTTPException, Depends, WebSocket, Request
 from sqlalchemy.orm import Session
 import asyncio
 import logging
-
+import json
 from marbix.core.deps import get_current_user, get_db
 
 from marbix.core.websocket import manager
@@ -27,6 +27,9 @@ async def process_request(
     db: Session = Depends(get_db)
 ):
     """Initiate processing with Make webhook"""
+    # Debug: Get raw body first
+    raw_body = await request.body()
+    logger.info(f"Raw body received: {raw_body}")
     try:
         current_user.number = request.user_number
         db.add(current_user)
@@ -38,7 +41,6 @@ async def process_request(
     except Exception as e:
         logger.error(f"Error processing request: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.post("/callback/{request_id}")
 async def handle_callback(
@@ -89,9 +91,14 @@ async def handle_callback(
         
         return {"status": "ok", "message": "Callback processed successfully"}
         
-    except ValueError as e:
-        logger.error(f"Callback for unknown request_id: {request_id} - {str(e)}")
-        raise HTTPException(status_code=404, detail=f"Request not found: {str(e)}")
+    except json.JSONDecodeError as e:
+        logger.error(f"JSON decode error for request_id {request_id}: {str(e)}")
+        
+        # Get raw body for debugging
+        raw_body = await request.body()
+        logger.error(f"Raw body that failed to parse: {raw_body}")
+        
+        raise HTTPException(status_code=400, detail=f"Invalid JSON format: {str(e)}")
     except Exception as e:
         logger.error(f"Error handling callback for request_id {request_id}: {str(e)}")
         
@@ -109,7 +116,7 @@ async def handle_callback(
             pass  # If this fails, we can't do much about it
             
         raise HTTPException(status_code=500, detail="Internal server error")
-        
+
 @router.get("/status/{request_id}", response_model=ProcessingStatus)
 async def get_status(
     request_id: str,
