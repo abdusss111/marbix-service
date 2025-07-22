@@ -46,43 +46,31 @@ async def handle_callback(
     request: Request,
     db: Session = Depends(get_db)
 ):
-    """Handle callback from Make - accepts both JSON and plain text"""
+    """Handle callback from Make - accepts JSON payload"""
     logger.info(f"Received callback for request_id: {request_id}")
     
     try:
-        content_type = request.headers.get("content-type", "")
+        # Get the JSON payload
+        data = await request.json()
+        logger.info(f"Received data: {data}")
         
-        if "application/json" in content_type:
-            # JSON payload
-            try:
-                data = await request.json()
-                if isinstance(data, dict):
-                    result = data.get("result", "")
-                    sources = data.get("sources", "")
-                    status = data.get("status", "completed")
-                    error = data.get("error", None)
-                else:
-                    result = str(data)
-                    status = "completed"
-                    error = None
-            except Exception as e:
-                logger.error(f"JSON parse error: {e}")
-                # Try to get raw body
-                body = await request.body()
-                result = body.decode("utf-8", errors="ignore")
-                status = "completed"
-                error = None
-        else:
-            # Plain text payload
-            body = await request.body()
-            result = body.decode("utf-8", errors="ignore")
-            status = "completed"
-            error = None
+        # Extract fields from the JSON payload
+        result = data.get("result", "")
+        sources = data.get("sources", [])  # Default to empty array
+        status = "completed"  # Set default status
+        error = None
+        
+        # Validate that we have the required data
+        if not result:
+            logger.warning(f"Empty result received for request_id: {request_id}")
+            status = "error"
+            error = "Empty result received"
         
         # Update request status in database
         make_service.update_request_status(
             request_id=request_id,
             result=result,
+            sources=sources,  # Pass sources to the service
             status=status,
             error=error,
             db=db
@@ -93,23 +81,35 @@ async def handle_callback(
             request_id=request_id,
             status=status,
             result=result,
+            sources=sources,  # Include sources in WebSocket message
             error=error
         )
         
         await manager.send_message(request_id, message.dict())
         
-        # Schedule cleanup - removed as method doesn't exist
-        # asyncio.create_task(make_service.cleanup_request(request_id))
-        
-        return {"status": "ok", "message": "Callback processed"}
+        return {"status": "ok", "message": "Callback processed successfully"}
         
     except ValueError as e:
-        logger.warning(f"Callback for unknown request_id: {request_id}")
-        raise HTTPException(status_code=404, detail=str(e))
+        logger.error(f"Callback for unknown request_id: {request_id} - {str(e)}")
+        raise HTTPException(status_code=404, detail=f"Request not found: {str(e)}")
     except Exception as e:
-        logger.error(f"Error handling callback: {str(e)}")
+        logger.error(f"Error handling callback for request_id {request_id}: {str(e)}")
+        
+        # Try to update status as failed in database
+        try:
+            make_service.update_request_status(
+                request_id=request_id,
+                result="",
+                sources=[],
+                status="error",
+                error=str(e),
+                db=db
+            )
+        except:
+            pass  # If this fails, we can't do much about it
+            
         raise HTTPException(status_code=500, detail="Internal server error")
-
+        
 @router.get("/status/{request_id}", response_model=ProcessingStatus)
 async def get_status(
     request_id: str,
