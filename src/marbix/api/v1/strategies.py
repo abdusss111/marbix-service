@@ -39,9 +39,7 @@ async def get_user_strategies(
                 marketing_budget=request_data.get("marketing_budget"),
                 status=strategy.status,
                 created_at=strategy.created_at,
-                completed_at=strategy.completed_at,
-                result=strategy.result or "",
-                sources=strategy.sources or ""
+                completed_at=strategy.completed_at
             )
             result.append(item)
         
