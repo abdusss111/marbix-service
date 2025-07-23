@@ -41,5 +41,3 @@ class StrategyItem(BaseModel):
     class Config:
         from_attributes = True
 
-class SourcesCallbackRequest(BaseModel):
-    sources: List[str] = []

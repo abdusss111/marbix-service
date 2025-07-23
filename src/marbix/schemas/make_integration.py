@@ -1,6 +1,6 @@
 # src/marbix/schemas/make_integration.py
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 
 class MakeWebhookRequest(BaseModel):
@@ -45,3 +45,6 @@ class WebSocketMessage(BaseModel):
     result: Optional[str] = None
     error: Optional[str] = None
     message: Optional[str] = None
+
+class SourcesCallbackRequest(BaseModel):
+    sources: List[str] = []
