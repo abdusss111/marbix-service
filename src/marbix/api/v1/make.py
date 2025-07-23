@@ -177,7 +177,7 @@ async def handle_sources_callback(
                 request_id=request_id,
                 status=current_status.status,
                 result=current_status.result,
-                sources=sources,  
+                # Alternative if WebSocketMessage expects array: sources=sources_array,
                 error=current_status.error
             )
             
