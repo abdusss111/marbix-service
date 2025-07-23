@@ -28,8 +28,7 @@ async def process_request(
 ):
     """Initiate processing with Make webhook"""
     # Debug: Get raw body first
-    raw_body = await request.body()
-    logger.info(f"Raw body received: {raw_body}")
+
     try:
         current_user.number = request.user_number
         db.add(current_user)
