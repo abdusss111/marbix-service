@@ -154,6 +154,7 @@ async def handle_sources_callback(
     try:
         # Get the sources array
         sources_array = sources_data.sources
+        print(f"Sources received: {sources_array}")
         logger.info(f"Received {len(sources_array)} sources for {request_id}")
         
         # Convert array to text for storage
