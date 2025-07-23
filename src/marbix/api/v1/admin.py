@@ -8,7 +8,7 @@ from marbix.schemas.strategy import StrategyListItem
 from marbix.schemas.user import UserOut
 from typing import List
 from marbix.models.make_request import MakeRequest
-
+from marbix.schemas.admin import AdminStatsResponse
 router = APIRouter()
 
 
@@ -31,9 +31,8 @@ def get_user_by_id(user_id: str, admin: User = Depends(get_current_admin), db: S
 @router.get("/users/{user_id}/strategies", response_model=List[StrategyListItem])
 def get_user_strategies(user_id: str, admin: User = Depends(get_current_admin), db: Session = Depends(get_db)):
     strategies = db.query(MakeRequest).filter(
-        MakeRequest.user_id == user_id,
-        MakeRequest.status == "completed"
-    ).order_by(MakeRequest.created_at.desc()).all()
+        MakeRequest.user_id == user_id)
+        .order_by(MakeRequest.created_at.desc()).all()
 
     return [
         StrategyListItem(
@@ -55,3 +54,11 @@ def get_user_strategies(user_id: str, admin: User = Depends(get_current_admin), 
         )
         for s in strategies
     ]
+
+
+@router.get("/statistics", response_model=AdminStatsResponse)
+def get_admin_statistics(admin: User = Depends(get_current_admin), db: Session = Depends(get_db)):
+    """
+    Returns admin dashboard statistics including user count, strategy counts by status.
+    """
+    return admin_service.get_admin_statistics(db)

@@ -7,6 +7,8 @@ from passlib.context import CryptContext
 from marbix.models.user import User
 from marbix.models.make_request import MakeRequest
 from marbix.models.role import UserRole
+from datetime import datetime, timedelta
+from sqlalchemy import func
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 JWT_SECRET = os.getenv("AUTH_SECRET", "secret-key")
@@ -65,3 +67,42 @@ def get_user_strategies(user_id: str, db: Session):
         raise HTTPException(status_code=404, detail="User not found")
 
     return db.query(MakeRequest).filter(MakeRequest.user_id == user_id).all()
+
+
+def get_admin_statistics(db: Session):
+    """
+    Returns admin dashboard statistics.
+    """
+    # Total users (excluding admins)
+    total_users = db.query(func.count(User.id)).filter(
+        User.role != UserRole.ADMIN
+    ).scalar()
+    
+    # Total strategies
+    total_strategies = db.query(func.count(MakeRequest.id)).scalar()
+    
+    # Successful strategies (completed)
+    successful_strategies = db.query(func.count(MakeRequest.id)).filter(
+        MakeRequest.status == "completed"
+    ).scalar()
+    
+    # Calculate crashed strategies (processing > 20 minutes)
+    twenty_minutes_ago = datetime.utcnow() - timedelta(minutes=20)
+    failed_strategies = db.query(func.count(MakeRequest.id)).filter(
+        MakeRequest.status == "processing",
+        MakeRequest.created_at < twenty_minutes_ago
+    ).scalar()
+    
+    # Currently processing (within 20 minutes)
+    processing_strategies = db.query(func.count(MakeRequest.id)).filter(
+        MakeRequest.status == "processing",
+        MakeRequest.created_at >= twenty_minutes_ago
+    ).scalar()
+    
+    return {
+        "total_users": total_users,
+        "total_strategies": total_strategies,
+        "successful_strategies": successful_strategies,
+        "failed_strategies": failed_strategies,
+        "processing_strategies": processing_strategies
+    }
