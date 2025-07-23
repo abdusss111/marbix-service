@@ -47,7 +47,8 @@ def get_user_strategies(user_id: str, admin: User = Depends(get_current_admin), 
             status=s.status,
             created_at=s.created_at,
             completed_at=s.completed_at,
-            result=s.result or ""
+            result=s.result or "",
+            sources=s.sources or None
         )
         for s in strategies
     ]
