@@ -154,22 +154,13 @@ async def handle_sources_callback(
     try:
         # Get the sources array
         sources_array = sources_data.sources
-        print(f"Sources received: {sources_array}")
         logger.info(f"Received {len(sources_array)} sources for {request_id}")
         
-        # Convert array to text for storage
-        if sources_array:
-            # Join sources with newlines (or choose your preferred delimiter)
-            sources_text = "\n".join(sources_array)
-            logger.info(f"Sources preview: {sources_text[:200]}...")
-        else:
-            logger.info(f"Empty sources array received for request_id: {request_id}")
-            sources_text = ""
         
         # Update sources in database (as text)
         updated = make_service.update_request_sources(
             request_id=request_id,
-            sources=sources_text,  # Pass as string
+            sources=sources_array,  # Pass as string
             db=db
         )
         
@@ -186,8 +177,7 @@ async def handle_sources_callback(
                 request_id=request_id,
                 status=current_status.status,
                 result=current_status.result,
-                sources=sources_text,  # Send as text (assuming WebSocketMessage expects string)
-                # Alternative if WebSocketMessage expects array: sources=sources_array,
+                sources=sources,  
                 error=current_status.error
             )
             
@@ -195,9 +185,7 @@ async def handle_sources_callback(
         
         return {
             "status": "ok", 
-            "message": "Sources updated successfully",
-            "sources_count": len(sources_array),
-            "sources_text_length": len(sources_text)
+            "message": "Sources updated successfully"
         }
         
     except Exception as e:
