@@ -32,7 +32,7 @@ def get_user_by_id(user_id: str, admin: User = Depends(get_current_admin), db: S
 def get_user_strategies(user_id: str, admin: User = Depends(get_current_admin), db: Session = Depends(get_db)):
     strategies = db.query(MakeRequest).filter(MakeRequest.user_id == user_id).order_by(MakeRequest.created_at.desc()).all()
     return [
-        StrategyListItem(
+        StrategyItem(
             request_id=s.request_id,
             business_type=(s.request_data or {}).get("business_type", ""),
             business_goal=(s.request_data or {}).get("business_goal", ""),
