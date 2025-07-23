@@ -132,8 +132,8 @@ async def handle_sources_callback(
         
         # Validate that we have sources content
         if not sources_text:
-            logger.warning(f"Empty sources received for request_id: {request_id}")
-            raise HTTPException(status_code=400, detail="Empty sources content")
+            logger.info(f"Empty sources received for request_id: {request_id}")
+            sources_text = ""  # Ensure it's an empty string rather than None
         
         # Update sources in database
         updated = make_service.update_request_sources(

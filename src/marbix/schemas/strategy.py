@@ -36,7 +36,7 @@ class StrategyItem(BaseModel):
     created_at: datetime
     completed_at: Optional[datetime]
     result: str
-    sources: str
+    sources: Optional[str]
     
     class Config:
         from_attributes = True
