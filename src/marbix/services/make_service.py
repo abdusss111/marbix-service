@@ -103,7 +103,6 @@ class MakeService:
         if not request:
             raise ValueError(f"Request {request_id} not found")
         
-        request.sources = sources
         request.status = status
         request.result = result
         request.completed_at = datetime.utcnow()
