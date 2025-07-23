@@ -14,7 +14,8 @@ class MakeWebhookRequest(BaseModel):
     user_number: str
     competitors: Optional[str] = None
     actions: Optional[str] = None
-    marketing_budget: Optional[str] = None
+    promotion_budget: Optional[str] = None
+    team_budget: Optional[str] = None
 
 class MakeWebhookPayload(MakeWebhookRequest):
     """Payload sent to Make webhook"""

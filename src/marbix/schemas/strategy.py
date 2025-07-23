@@ -8,7 +8,8 @@ class StrategyListItem(BaseModel):
     business_type: str
     business_goal: str
     location: str
-    marketing_budget: Optional[str]
+    promotion_budget: Optional[str] = None
+    team_budget: Optional[str] = None
     current_volume: Optional[str] = ""
     product_data: Optional[str] = ""
     target_audience_info: Optional[str] = ""
@@ -26,7 +27,8 @@ class StrategyItem(BaseModel):
     business_type: str
     business_goal: str
     location: str
-    marketing_budget: Optional[str]
+    promotion_budget: Optional[str] = None
+    team_budget: Optional[str] = None
     current_volume: Optional[str] = ""
     product_data: Optional[str] = ""
     target_audience_info: Optional[str] = ""
