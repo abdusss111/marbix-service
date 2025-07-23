@@ -155,7 +155,7 @@ class MakeService:
             # Update the sources field
             request_record.sources = sources
             request_record.updated_at = datetime.utcnow()  # If you have this field
-            
+            print(f"Updating sources for request_id {request_id}: {sources}")
             db.commit()
             db.refresh(request_record)
             
