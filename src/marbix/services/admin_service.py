@@ -19,9 +19,6 @@ def authenticate_admin(email: str, password: str, db: Session) -> str:
     Authenticates admin by email and password. Returns JWT if valid.
     """
     admin = db.query(User).filter(User.email == email, User.role == UserRole.ADMIN).first()
-    
-    print(pwd_context.verify(password, admin.password))
-    print(password, admin.password)
 
     if not admin or not admin.password or not pwd_context.verify(password, admin.password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
@@ -74,9 +71,7 @@ def get_admin_statistics(db: Session):
     Returns admin dashboard statistics.
     """
     # Total users (excluding admins)
-    total_users = db.query(func.count(User.id)).filter(
-        User.role != UserRole.ADMIN
-    ).scalar()
+    total_users = db.query(func.count(User.id)).scalar()
     
     # Total strategies
     total_strategies = db.query(func.count(MakeRequest.request_id)).scalar()
