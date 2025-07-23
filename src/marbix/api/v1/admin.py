@@ -30,10 +30,7 @@ def get_user_by_id(user_id: str, admin: User = Depends(get_current_admin), db: S
 
 @router.get("/users/{user_id}/strategies", response_model=List[StrategyListItem])
 def get_user_strategies(user_id: str, admin: User = Depends(get_current_admin), db: Session = Depends(get_db)):
-    strategies = db.query(MakeRequest).filter(
-        MakeRequest.user_id == user_id)
-        .order_by(MakeRequest.created_at.desc()).all()
-
+    strategies = db.query(MakeRequest).filter(MakeRequest.user_id == user_id).order_by(MakeRequest.created_at.desc()).all()
     return [
         StrategyListItem(
             request_id=s.request_id,
