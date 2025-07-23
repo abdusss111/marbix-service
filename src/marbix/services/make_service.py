@@ -95,8 +95,7 @@ class MakeService:
                 db.commit()
                 raise
     
-    def update_request_status(self, request_id: str, result: str, sources: str, 
-                            status: str = "completed", error: Optional[str] = None,
+    def update_request_status(self, request_id: str, result: str, status: str = "completed", error: Optional[str] = None,
                             db: Session = None):
         """Update the status of a request in database"""
         request = db.query(MakeRequest).filter(MakeRequest.request_id == request_id).first()
@@ -146,8 +145,8 @@ class MakeService:
         """Update sources for a specific request"""
         try:
             # Find the request in database (adjust table/model name as needed)
-            request_record = db.query(YourRequestModel).filter(
-                YourRequestModel.request_id == request_id
+            request_record = db.query(MakeRequest).filter(
+                MakeRequest.request_id == request_id
             ).first()
             
             if not request_record:
