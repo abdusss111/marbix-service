@@ -1,6 +1,6 @@
 # src/marbix/schemas/strategy.py
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 
 class StrategyListItem(BaseModel):
@@ -40,3 +40,6 @@ class StrategyItem(BaseModel):
     
     class Config:
         from_attributes = True
+
+class SourceCallbackRequest(BaseModel):
+    sources: List[str] = []

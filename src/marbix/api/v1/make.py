@@ -11,7 +11,8 @@ from marbix.schemas.make_integration import (
     MakeWebhookRequest,
     MakeCallbackResponse,
     ProcessingStatus,
-    WebSocketMessage
+    WebSocketMessage,
+    SourcesCallbackRequest
 )
 from marbix.services.make_service import make_service
 from marbix.models.user import User
@@ -117,28 +118,30 @@ async def handle_callback(
 @router.post("/callback/{request_id}/sources")
 async def handle_sources_callback(
     request_id: str, 
-    request: Request,
+    sources_data: SourcesCallbackRequest,  # Accept JSON with array
     db: Session = Depends(get_db)
 ):
-    """Handle sources callback from Make - accepts plain text sources"""
+    """Handle sources callback from Make - accepts JSON array, stores as text"""
     logger.info(f"Received sources callback for request_id: {request_id}")
     
     try:
-        # Get the plain text content
-        raw_body = await request.body()
-        sources_text = raw_body.decode('utf-8').strip()
+        # Get the sources array
+        sources_array = sources_data.sources
+        logger.info(f"Received {len(sources_array)} sources for {request_id}")
         
-        logger.info(f"Received sources text for {request_id}: {sources_text[:200]}...")  # Log first 200 chars
+        # Convert array to text for storage
+        if sources_array:
+            # Join sources with newlines (or choose your preferred delimiter)
+            sources_text = "\n".join(sources_array)
+            logger.info(f"Sources preview: {sources_text[:200]}...")
+        else:
+            logger.info(f"Empty sources array received for request_id: {request_id}")
+            sources_text = ""
         
-        # Validate that we have sources content
-        if not sources_text:
-            logger.info(f"Empty sources received for request_id: {request_id}")
-            sources_text = ""  # Ensure it's an empty string rather than None
-        
-        # Update sources in database
+        # Update sources in database (as text)
         updated = make_service.update_request_sources(
             request_id=request_id,
-            sources=sources_text,
+            sources=sources_text,  # Pass as string
             db=db
         )
         
@@ -155,17 +158,20 @@ async def handle_sources_callback(
                 request_id=request_id,
                 status=current_status.status,
                 result=current_status.result,
-                sources=sources_text,  # Include the new sources
+                sources=sources_text,  # Send as text (assuming WebSocketMessage expects string)
+                # Alternative if WebSocketMessage expects array: sources=sources_array,
                 error=current_status.error
             )
             
             await manager.send_message(request_id, message.dict())
         
-        return {"status": "ok", "message": "Sources updated successfully"}
+        return {
+            "status": "ok", 
+            "message": "Sources updated successfully",
+            "sources_count": len(sources_array),
+            "sources_text_length": len(sources_text)
+        }
         
-    except UnicodeDecodeError as e:
-        logger.error(f"Failed to decode sources text for request_id {request_id}: {str(e)}")
-        raise HTTPException(status_code=400, detail="Invalid text encoding")
     except Exception as e:
         logger.error(f"Error handling sources callback for request_id {request_id}: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")
