@@ -111,88 +111,6 @@ async def handle_callback(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-
-# Add this endpoint to your existing router in src/marbix/api/v1/make.py
-
-from pydantic import BaseModel, field_validator
-from typing import List, Union
-import re
-
-class SourcesCallbackRequest(BaseModel):
-    sources: Union[List[str], str] = []
-    
-    @field_validator('sources', mode='before')
-    @classmethod
-    def parse_sources(cls, v):
-        """Handle both string and array inputs from Make.com"""
-        if isinstance(v, str):
-            # Handle string input like "[url1, url2, url3]"
-            if v.startswith('[') and v.endswith(']'):
-                # Remove brackets and split by comma
-                v = v[1:-1]  # Remove [ and ]
-                # Split by comma and clean each URL
-                sources = [url.strip() for url in v.split(', ') if url.strip()]
-                return sources
-            else:
-                # Single URL as string
-                return [v.strip()] if v.strip() else []
-        elif isinstance(v, list):
-            # Already a proper list
-            return v
-        else:
-            return []
-
-@router.post("/callback/{request_id}/sources")
-async def handle_sources_callback(
-    request_id: str, 
-    sources_data: SourcesCallbackRequest,  # Accept JSON with array
-    db: Session = Depends(get_db)
-):
-    """Handle sources callback from Make - accepts JSON array, stores as text"""
-    logger.info(f"Received sources callback for request_id: {request_id}")
-    
-    try:
-        # Get the sources array
-        sources_array = sources_data.sources
-        logger.info(f"Received {len(sources_array)} sources for {request_id}")
-        
-        
-        # Update sources in database (as text)
-        updated = make_service.update_request_sources(
-            request_id=request_id,
-            sources=sources_array,  # Pass as string
-            db=db
-        )
-        
-        if not updated:
-            logger.error(f"Failed to update sources for request_id: {request_id} - request not found")
-            raise HTTPException(status_code=404, detail="Request not found")
-        
-        # Get current request status to send through WebSocket
-        current_status = make_service.get_request_status(request_id, db)
-        
-        if current_status:
-            # Send updated info through WebSocket if connected
-            message = WebSocketMessage(
-                request_id=request_id,
-                status=current_status.status,
-                result=current_status.result,
-                # Alternative if WebSocketMessage expects array: sources=sources_array,
-                error=current_status.error
-            )
-            
-            await manager.send_message(request_id, message.dict())
-        
-        return {
-            "status": "ok", 
-            "message": "Sources updated successfully"
-        }
-        
-    except Exception as e:
-        logger.error(f"Error handling sources callback for request_id {request_id}: {str(e)}")
-        raise HTTPException(status_code=500, detail="Internal server error")
-
-
 @router.get("/status/{request_id}", response_model=ProcessingStatus)
 async def get_status(
     request_id: str,
@@ -261,3 +179,96 @@ async def websocket_endpoint(websocket: WebSocket, request_id: str):
         logger.error(f"WebSocket error for {request_id}: {str(e)}")
     finally:
         manager.disconnect(request_id)
+
+
+
+
+
+from pydantic import BaseModel, field_validator
+from typing import List, Union
+import re
+
+class SourcesCallbackRequest(BaseModel):
+    sources: Union[List[str], str] = []
+    
+    @field_validator('sources', mode='before')
+    @classmethod
+    def parse_sources(cls, v):
+        """Handle both string and array inputs from Make.com"""
+        if isinstance(v, str):
+            # Handle string input like "[url1, url2, url3]"
+            if v.startswith('[') and v.endswith(']'):
+                # Remove brackets and split by comma
+                v = v[1:-1]  # Remove [ and ]
+                # Split by comma and clean each URL
+                sources = [url.strip() for url in v.split(', ') if url.strip()]
+                return sources
+            else:
+                # Single URL as string
+                return [v.strip()] if v.strip() else []
+        elif isinstance(v, list):
+            # Already a proper list
+            return v
+        else:
+            return []
+
+@router.post("/callback/{request_id}/sources")
+async def handle_sources_callback(
+    request_id: str, 
+    sources_data: SourcesCallbackRequest,  # Accept JSON with array
+    db: Session = Depends(get_db)
+):
+    """Handle sources callback from Make - accepts JSON array, stores as text"""
+    logger.info(f"Received sources callback for request_id: {request_id}")
+    
+    try:
+        # Get the sources array
+        sources_array = sources_data.sources
+        logger.info(f"Received {len(sources_array)} sources for {request_id}")
+        
+        # Convert array to text for storage
+        if sources_array:
+            # Join sources with newlines (or choose your preferred delimiter)
+            sources_text = "\n".join(sources_array)
+            logger.info(f"Sources preview: {sources_text[:200]}...")
+        else:
+            logger.info(f"Empty sources array received for request_id: {request_id}")
+            sources_text = ""
+        
+        # Update sources in database (as text)
+        updated = await make_service.update_request_sources(
+            request_id=request_id,
+            sources=sources_text,  # Pass as string
+            db=db
+        )
+        
+        if not updated:
+            logger.error(f"Failed to update sources for request_id: {request_id} - request not found")
+            raise HTTPException(status_code=404, detail="Request not found")
+        
+        # Get current request status to send through WebSocket
+        current_status = await make_service.get_request_status(request_id, db)
+        
+        if current_status:
+            # Send updated info through WebSocket if connected
+            message = WebSocketMessage(
+                request_id=request_id,
+                status=current_status.status,
+                result=current_status.result,
+                sources=sources_text,  # Send as text (assuming WebSocketMessage expects string)
+                # Alternative if WebSocketMessage expects array: sources=sources_array,
+                error=current_status.error
+            )
+            
+            await manager.send_message(request_id, message.dict())
+        
+        return {
+            "status": "ok", 
+            "message": "Sources updated successfully",
+            "sources_count": len(sources_array),
+            "sources_text_length": len(sources_text)
+        }
+        
+    except Exception as e:
+        logger.error(f"Error handling sources callback for request_id {request_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
