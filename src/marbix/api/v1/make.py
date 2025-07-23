@@ -247,7 +247,7 @@ async def handle_sources_callback(
             raise HTTPException(status_code=404, detail="Request not found")
         
         # Get current request status to send through WebSocket
-        current_status = await make_service.get_request_status(request_id, db)
+        current_status = make_service.get_request_status(request_id, db)
         
         if current_status:
             # Send updated info through WebSocket if connected
