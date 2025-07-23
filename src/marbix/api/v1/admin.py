@@ -4,7 +4,7 @@ from marbix.schemas.login import AdminLoginRequest, AdminLoginResponse
 from marbix.core.deps import get_db, get_current_admin
 from marbix.services import admin_service
 from marbix.models.user import User
-from marbix.schemas.strategy import StrategyListItem
+from marbix.schemas.strategy import StrategyItem
 from marbix.schemas.user import UserOut
 from typing import List
 from marbix.models.make_request import MakeRequest
@@ -28,7 +28,7 @@ def get_user_by_id(user_id: str, admin: User = Depends(get_current_admin), db: S
     return admin_service.get_user_by_id(user_id, db)
 
 
-@router.get("/users/{user_id}/strategies", response_model=List[StrategyListItem])
+@router.get("/users/{user_id}/strategies", response_model=List[StrategyItem])
 def get_user_strategies(user_id: str, admin: User = Depends(get_current_admin), db: Session = Depends(get_db)):
     strategies = db.query(MakeRequest).filter(MakeRequest.user_id == user_id).order_by(MakeRequest.created_at.desc()).all()
     return [
