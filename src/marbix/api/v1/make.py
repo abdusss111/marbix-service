@@ -11,8 +11,7 @@ from marbix.schemas.make_integration import (
     MakeWebhookRequest,
     MakeCallbackResponse,
     ProcessingStatus,
-    WebSocketMessage,
-    SourcesCallbackRequest
+    WebSocketMessage
 )
 from marbix.services.make_service import make_service
 from marbix.models.user import User
@@ -115,6 +114,34 @@ async def handle_callback(
 
 # Add this endpoint to your existing router in src/marbix/api/v1/make.py
 
+from pydantic import BaseModel, field_validator
+from typing import List, Union
+import re
+
+class SourcesCallbackRequest(BaseModel):
+    sources: Union[List[str], str] = []
+    
+    @field_validator('sources', mode='before')
+    @classmethod
+    def parse_sources(cls, v):
+        """Handle both string and array inputs from Make.com"""
+        if isinstance(v, str):
+            # Handle string input like "[url1, url2, url3]"
+            if v.startswith('[') and v.endswith(']'):
+                # Remove brackets and split by comma
+                v = v[1:-1]  # Remove [ and ]
+                # Split by comma and clean each URL
+                sources = [url.strip() for url in v.split(', ') if url.strip()]
+                return sources
+            else:
+                # Single URL as string
+                return [v.strip()] if v.strip() else []
+        elif isinstance(v, list):
+            # Already a proper list
+            return v
+        else:
+            return []
+
 @router.post("/callback/{request_id}/sources")
 async def handle_sources_callback(
     request_id: str, 
@@ -175,6 +202,7 @@ async def handle_sources_callback(
     except Exception as e:
         logger.error(f"Error handling sources callback for request_id {request_id}: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")
+
 
 @router.get("/status/{request_id}", response_model=ProcessingStatus)
 async def get_status(
