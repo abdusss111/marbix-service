@@ -47,31 +47,43 @@ async def handle_callback(
     request: Request,
     db: Session = Depends(get_db)
 ):
-    """Handle callback from Make - accepts JSON payload"""
+    """Handle callback from Make - accepts both JSON and plain text"""
     logger.info(f"Received callback for request_id: {request_id}")
     
     try:
-        # Get the JSON payload
-        data = await request.json()
-        logger.info(f"Received data: {data}")
+        content_type = request.headers.get("content-type", "")
         
-        # Extract fields from the JSON payload
-        result = data.get("result", "")
-        sources = data.get("sources", [])  # Default to empty array
-        status = "completed"  # Set default status
-        error = None
-        
-        # Validate that we have the required data
-        if not result:
-            logger.warning(f"Empty result received for request_id: {request_id}")
-            status = "error"
-            error = "Empty result received"
+        if "application/json" in content_type:
+            # JSON payload
+            try:
+                data = await request.json()
+                if isinstance(data, dict):
+                    result = data.get("result", "")
+                    sources = data.get("sources", "")
+                    status = data.get("status", "completed")
+                    error = data.get("error", None)
+                else:
+                    result = str(data)
+                    status = "completed"
+                    error = None
+            except Exception as e:
+                logger.error(f"JSON parse error: {e}")
+                # Try to get raw body
+                body = await request.body()
+                result = body.decode("utf-8", errors="ignore")
+                status = "completed"
+                error = None
+        else:
+            # Plain text payload
+            body = await request.body()
+            result = body.decode("utf-8", errors="ignore")
+            status = "completed"
+            error = None
         
         # Update request status in database
         make_service.update_request_status(
             request_id=request_id,
             result=result,
-            sources=sources,  # Pass sources to the service
             status=status,
             error=error,
             db=db
@@ -82,38 +94,81 @@ async def handle_callback(
             request_id=request_id,
             status=status,
             result=result,
-            sources=sources,  # Include sources in WebSocket message
             error=error
         )
         
         await manager.send_message(request_id, message.dict())
         
-        return {"status": "ok", "message": "Callback processed successfully"}
+        # Schedule cleanup - removed as method doesn't exist
+        # asyncio.create_task(make_service.cleanup_request(request_id))
         
-    except json.JSONDecodeError as e:
-        logger.error(f"JSON decode error for request_id {request_id}: {str(e)}")
+        return {"status": "ok", "message": "Callback processed"}
         
-        # Get raw body for debugging
-        raw_body = await request.body()
-        logger.error(f"Raw body that failed to parse: {raw_body}")
-        
-        raise HTTPException(status_code=400, detail=f"Invalid JSON format: {str(e)}")
+    except ValueError as e:
+        logger.warning(f"Callback for unknown request_id: {request_id}")
+        raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        logger.error(f"Error handling callback for request_id {request_id}: {str(e)}")
+        logger.error(f"Error handling callback: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+
+# Add this endpoint to your existing router in src/marbix/api/v1/make.py
+
+@router.post("/callback/{request_id}/sources")
+async def handle_sources_callback(
+    request_id: str, 
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Handle sources callback from Make - accepts plain text sources"""
+    logger.info(f"Received sources callback for request_id: {request_id}")
+    
+    try:
+        # Get the plain text content
+        raw_body = await request.body()
+        sources_text = raw_body.decode('utf-8').strip()
         
-        # Try to update status as failed in database
-        try:
-            make_service.update_request_status(
+        logger.info(f"Received sources text for {request_id}: {sources_text[:200]}...")  # Log first 200 chars
+        
+        # Validate that we have sources content
+        if not sources_text:
+            logger.warning(f"Empty sources received for request_id: {request_id}")
+            raise HTTPException(status_code=400, detail="Empty sources content")
+        
+        # Update sources in database
+        updated = make_service.update_request_sources(
+            request_id=request_id,
+            sources=sources_text,
+            db=db
+        )
+        
+        if not updated:
+            logger.error(f"Failed to update sources for request_id: {request_id} - request not found")
+            raise HTTPException(status_code=404, detail="Request not found")
+        
+        # Get current request status to send through WebSocket
+        current_status = make_service.get_request_status(request_id, db)
+        
+        if current_status:
+            # Send updated info through WebSocket if connected
+            message = WebSocketMessage(
                 request_id=request_id,
-                result="",
-                sources=[],
-                status="error",
-                error=str(e),
-                db=db
+                status=current_status.status,
+                result=current_status.result,
+                sources=sources_text,  # Include the new sources
+                error=current_status.error
             )
-        except:
-            pass  # If this fails, we can't do much about it
             
+            await manager.send_message(request_id, message.dict())
+        
+        return {"status": "ok", "message": "Sources updated successfully"}
+        
+    except UnicodeDecodeError as e:
+        logger.error(f"Failed to decode sources text for request_id {request_id}: {str(e)}")
+        raise HTTPException(status_code=400, detail="Invalid text encoding")
+    except Exception as e:
+        logger.error(f"Error handling sources callback for request_id {request_id}: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.get("/status/{request_id}", response_model=ProcessingStatus)
