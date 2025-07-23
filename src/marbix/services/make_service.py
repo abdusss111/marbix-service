@@ -143,31 +143,31 @@ class MakeService:
         logger.info(f"Cleaned up {deleted} old requests")
 
     async def update_request_sources(self, request_id: str, sources: str, db: Session) -> bool:
-    """Update sources for a specific request"""
-    try:
-        # Find the request in database (adjust table/model name as needed)
-        request_record = db.query(YourRequestModel).filter(
-            YourRequestModel.request_id == request_id
-        ).first()
-        
-        if not request_record:
-            logger.error(f"Request {request_id} not found in database")
+        """Update sources for a specific request"""
+        try:
+            # Find the request in database (adjust table/model name as needed)
+            request_record = db.query(YourRequestModel).filter(
+                YourRequestModel.request_id == request_id
+            ).first()
+            
+            if not request_record:
+                logger.error(f"Request {request_id} not found in database")
+                return False
+            
+            # Update the sources field
+            request_record.sources = sources
+            request_record.updated_at = datetime.utcnow()  # If you have this field
+            
+            db.commit()
+            db.refresh(request_record)
+            
+            logger.info(f"Sources updated successfully for request_id: {request_id}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to update sources for request_id {request_id}: {str(e)}")
+            db.rollback()
             return False
-        
-        # Update the sources field
-        request_record.sources = sources
-        request_record.updated_at = datetime.utcnow()  # If you have this field
-        
-        db.commit()
-        db.refresh(request_record)
-        
-        logger.info(f"Sources updated successfully for request_id: {request_id}")
-        return True
-        
-    except Exception as e:
-        logger.error(f"Failed to update sources for request_id {request_id}: {str(e)}")
-        db.rollback()
-        return False
 
 # Global instance
 make_service = MakeService()
