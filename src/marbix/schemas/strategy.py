@@ -18,6 +18,7 @@ class StrategyListItem(BaseModel):
     status: str
     created_at: datetime
     completed_at: Optional[datetime]
+    result: Optional[str]
     
     class Config:
         from_attributes = True
