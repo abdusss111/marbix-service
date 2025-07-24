@@ -77,16 +77,28 @@ def get_admin_statistics(db: Session):
     total_strategies = db.query(func.count(MakeRequest.request_id)).join(User, MakeRequest.user_id == User.id).filter(User.role != UserRole.ADMIN).scalar()
     
     # Successful strategies (completed)
-    successful_strategies = db.query(func.count(MakeRequest.request_id)).filter(
-        MakeRequest.status == "completed"
-    ).scalar()
     
+    successful_strategies = (
+    db.query(func.count(MakeRequest.request_id))
+      .join(User, MakeRequest.user_id == User.id)
+      .filter(
+          MakeRequest.status == "completed",
+          User.role       != UserRole.ADMIN
+      )
+      .scalar()
+    )
+
     # Calculate crashed strategies (processing > 20 minutes)
     twenty_minutes_ago = datetime.utcnow() - timedelta(minutes=20)
-    failed_strategies = db.query(func.count(MakeRequest.request_id)).filter(
-        MakeRequest.status == "processing",
-        MakeRequest.created_at < twenty_minutes_ago
-    ).scalar()
+    failed_strategies = (
+    db.query(func.count(MakeRequest.request_id))
+      .join(User, MakeRequest.user_id == User.id)
+      .filter(
+          MakeRequest.status       == "processing",
+          MakeRequest.created_at   < twenty_minutes_ago,
+          User.role                != UserRole.ADMIN
+      )
+      .scalar())
     
     # Currently processing (within 20 minutes)
     processing_strategies = db.query(func.count(MakeRequest.request_id)).filter(
