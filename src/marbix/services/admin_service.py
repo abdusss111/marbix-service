@@ -74,10 +74,7 @@ def get_admin_statistics(db: Session):
     total_users = db.query(func.count(User.id)).filter(User.role != UserRole.ADMIN).scalar()
     
     # Total strategies
-    total_strategies = db.query(func.count(MakeRequest.request_id))
-          .join(User, MakeRequest.user_id == User.id)
-          .filter(User.role != UserRole.ADMIN)
-          .scalar()
+    total_strategies = db.query(func.count(MakeRequest.request_id)).join(User, MakeRequest.user_id == User.id).filter(User.role != UserRole.ADMIN).scalar()
     
     # Successful strategies (completed)
     successful_strategies = db.query(func.count(MakeRequest.request_id)).filter(
