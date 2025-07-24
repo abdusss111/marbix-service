@@ -15,7 +15,7 @@ from marbix.schemas.make_integration import (
 )
 from marbix.services.make_service import make_service
 from marbix.models.user import User
-
+from datetime import datetime
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
