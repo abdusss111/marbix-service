@@ -5,7 +5,7 @@ import asyncio
 import logging
 import json
 from marbix.core.deps import get_current_user, get_db
-
+from marbix.services.content_filter_service import content_filter_service
 from marbix.core.websocket import manager
 from marbix.schemas.make_integration import (
     MakeWebhookRequest,
@@ -26,20 +26,66 @@ async def process_request(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Initiate processing with Make webhook"""
-    # Debug: Get raw body first
-
+    """Initiate processing with Make webhook after content filtering"""
+    
     try:
+        logger.info(f"Processing strategy request from user {current_user.id}")
+        
+        # 1. CONTENT FILTERING - Check business data first
+        filter_result = await content_filter_service.check_business_request(request.dict())
+        
+        # 2. Handle filter service errors gracefully
+        if not filter_result.get("success", False):
+            logger.warning(f"Content filter service error: {filter_result.get('error', 'Unknown error')}")
+            return ProcessingStatus(
+                request_id="",
+                status="rejected",
+                message="Content filtering service temporarily unavailable. Please try again later.",
+                created_at=datetime.utcnow()
+            )
+        
+        # 3. If content is not allowed, return rejection message (no exception)
+        if not filter_result["is_allowed"]:
+            logger.info(
+                f"Content rejected for user {current_user.id}. "
+                f"Violated topics: {filter_result['violated_topics']}, "
+                f"Reason: {filter_result['reason']}"
+            )
+            
+            return ProcessingStatus(
+                request_id="",
+                status="rejected",
+                message="Your business request contains content that cannot be processed according to our platform policies. Please review and modify your business description.",
+                created_at=datetime.utcnow(),
+                error=f"Policy violation: {filter_result['reason']}"
+            )
+        
+        # 4. CONTENT APPROVED - Update user number and proceed
+        logger.info(f"Content approved for user {current_user.id}. Proceeding with strategy generation.")
+        
         current_user.number = request.user_number
         db.add(current_user)
         db.commit()
         db.refresh(current_user)
 
+        # 5. Send to Make for strategy processing
         status = await make_service.send_to_make(request, current_user.id, db)
+        
+        logger.info(f"Strategy request sent to Make successfully. Request ID: {status.request_id}")
         return status
+        
     except Exception as e:
         logger.error(f"Error processing request: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        
+        # Return error as ProcessingStatus instead of raising exception
+        return ProcessingStatus(
+            request_id="",
+            status="error",
+            message="An unexpected error occurred while processing your request. Please try again later.",
+            created_at=datetime.utcnow(),
+            error=str(e)
+        )
+
 
 @router.post("/callback/{request_id}")
 async def handle_callback(
