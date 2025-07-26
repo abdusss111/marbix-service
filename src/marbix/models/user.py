@@ -13,7 +13,7 @@ class User(Base):
     id = Column(String, primary_key=True, index=True)
     email = Column(String, unique=True, index=True, nullable=False)
     name = Column(String)
-    number = Column(String, nullable=False)
+    number = Column(String, nullable=True)
     password = Column(String, nullable=True)
     role = Column(SqlEnum(UserRole), default=UserRole.USER, nullable=False)
     created_at = Column(DateTime, nullable=False, default=datetime.now)
