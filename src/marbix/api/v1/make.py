@@ -100,7 +100,6 @@ async def handle_callback(
         content_type = request.headers.get("content-type", "")
         
         if "application/json" in content_type:
-            # JSON payload
             try:
                 data = await request.json()
                 if isinstance(data, dict):
@@ -113,19 +112,17 @@ async def handle_callback(
                     error = None
             except Exception as e:
                 logger.error(f"JSON parse error: {e}")
-                # Try to get raw body
                 body = await request.body()
                 result = body.decode("utf-8", errors="ignore")
                 status = "completed"
                 error = None
         else:
-            # Plain text payload
             body = await request.body()
             result = body.decode("utf-8", errors="ignore")
             status = "completed"
             error = None
         
-        # Update request status in database
+        # Update request status (this will set callback_received_at automatically)
         make_service.update_request_status(
             request_id=request_id,
             result=result,
@@ -134,7 +131,8 @@ async def handle_callback(
             db=db
         )
         
-        # Send result through WebSocket if connected
+        # Send result through WebSocket
+        from marbix.schemas.make_integration import WebSocketMessage
         message = WebSocketMessage(
             request_id=request_id,
             status=status,
@@ -144,9 +142,6 @@ async def handle_callback(
         
         await manager.send_message(request_id, message.dict())
         
-        # Schedule cleanup - removed as method doesn't exist
-        # asyncio.create_task(make_service.cleanup_request(request_id))
-        
         return {"status": "ok", "message": "Callback processed"}
         
     except ValueError as e:
@@ -155,7 +150,6 @@ async def handle_callback(
     except Exception as e:
         logger.error(f"Error handling callback: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")
-
 
 @router.get("/status/{request_id}", response_model=ProcessingStatus)
 async def get_status(

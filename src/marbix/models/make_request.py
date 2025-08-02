@@ -1,5 +1,4 @@
-# src/marbix/models/make_request.py
-from sqlalchemy import Column, String, Text, DateTime, JSON
+from sqlalchemy import Column, String, Text, DateTime, JSON, Integer
 from sqlalchemy.sql import func
 from marbix.db.base import Base
 
@@ -15,3 +14,8 @@ class MakeRequest(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     completed_at = Column(DateTime(timezone=True), nullable=True)
     sources = Column(Text, nullable=True)
+    
+    # NEW: Add retry tracking
+    retry_count = Column(Integer, default=0)
+    max_retries = Column(Integer, default=3)
+    callback_received_at = Column(DateTime(timezone=True), nullable=True)
