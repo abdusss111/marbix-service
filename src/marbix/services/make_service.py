@@ -105,7 +105,7 @@ class MakeService:
         logger.info(f"Scheduling retry check for {request_id} in 6 minutes")
         
         # Wait 6 minutes
-        await asyncio.sleep(6 * 60)  # 6 minutes = 360 seconds
+        await asyncio.sleep(7 * 60)  # 6 minutes = 360 seconds
         
         # Check if retry is needed
         await self._check_and_retry(request_id)
