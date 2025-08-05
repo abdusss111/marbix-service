@@ -393,11 +393,16 @@ class WorkerSettings:
     max_tries = settings.ARQ_MAX_TRIES
     retry_delay = settings.ARQ_RETRY_DELAY
 
-    # Добавить отладку
-    on_startup = lambda ctx: print("=== WORKER STARTED ===")
-    on_shutdown = lambda ctx: print("=== WORKER STOPPED ===")
-
     # Worker performance settings
-    max_jobs = 5  # Reduced for intensive tasks
-    keep_result = 7200  # Keep results for 2 hours
+    max_jobs = 5
+    keep_result = 7200
     health_check_interval = 60
+
+    # Убираем on_startup и on_shutdown или делаем правильно:
+    @staticmethod
+    async def on_startup(ctx):
+        logger.info("=== WORKER STARTED ===")
+
+    @staticmethod
+    async def on_shutdown(ctx):
+        logger.info("=== WORKER STOPPED ===")
