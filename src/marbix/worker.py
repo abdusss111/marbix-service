@@ -190,8 +190,6 @@ async def conduct_deep_research(request_data: Dict[str, Any], request_id: str) -
         • Current Volume: {current_volume}
         • Known Competitors: {competitors}
 
-        # остальной prompt без изменений...
-
        📊 REQUIRED RESEARCH AREAS:
 
        1. MARKET LANDSCAPE ANALYSIS
@@ -237,7 +235,7 @@ async def conduct_deep_research(request_data: Dict[str, Any], request_id: str) -
                     response = await client.post(
                         PERPLEXITY_API_URL,
                         json={
-                            "model": "llama-3.1-sonar-large-128k-online",
+                            "model": "sonar-deep-research",
                             "messages": [
                                 {
                                     "role": "system",
