@@ -1,6 +1,6 @@
 # src/marbix/schemas/strategy.py
-from pydantic import BaseModel
-from typing import Optional, List
+from pydantic import BaseModel, field_validator
+from typing import Optional, List, Union
 from datetime import datetime
 
 class StrategyListItem(BaseModel):
@@ -43,3 +43,22 @@ class StrategyItem(BaseModel):
     class Config:
         from_attributes = True
 
+
+class SourcesCallbackRequest(BaseModel):
+    sources: Union[List[str], str] = []
+
+    @field_validator('sources', mode='before')
+    @classmethod
+    def parse_sources(cls, v):
+        """Handle both string and array inputs from Make.com"""
+        if isinstance(v, str):
+            if v.startswith('[') and v.endswith(']'):
+                v = v[1:-1]
+                sources = [url.strip() for url in v.split(', ') if url.strip()]
+                return sources
+            else:
+                return [v.strip()] if v.strip() else []
+        elif isinstance(v, list):
+            return v
+        else:
+            return []
