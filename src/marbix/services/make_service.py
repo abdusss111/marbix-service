@@ -1,3 +1,5 @@
+# src/marbix/services/make_service.py
+
 import httpx
 import uuid
 import asyncio
@@ -5,235 +7,158 @@ from typing import Dict, Optional
 from datetime import datetime, timedelta
 import logging
 from sqlalchemy.orm import Session
+from arq import create_pool
 
 from marbix.core.config import settings
 from marbix.core.deps import get_db
 from marbix.models.make_request import MakeRequest
 from marbix.schemas.make_integration import (
     MakeWebhookRequest,
-    MakeWebhookPayload,
     ProcessingStatus
 )
 from marbix.core.websocket import manager
 
 logger = logging.getLogger(__name__)
 
+
 class MakeService:
-    """Service for handling Make webhook integration with database persistence"""
-    
+    """Service for handling strategy generation with ARQ workers and database persistence"""
+
     def __init__(self):
-        self.webhook_url = settings.WEBHOOK_URL
         self.api_base_url = settings.API_BASE_URL
-        
-    async def send_to_make(self, request: MakeWebhookRequest, user_id: str, db: Session, request_id: Optional[str] = None) -> ProcessingStatus:
-        """Send request to Make webhook and save to database"""
-        
-        # Use provided request_id or generate new one
-        if not request_id:
-            request_id = str(uuid.uuid4())
-            
-            # Save NEW request to database
+        # Legacy Make.com support (optional)
+        self.webhook_url = getattr(settings, 'WEBHOOK_URL', None)
+
+    async def create_request_record(
+            self,
+            request_id: str,
+            user_id: str,
+            request_data: dict,
+            db: Session
+    ) -> ProcessingStatus:
+        """Create initial request record in database"""
+        try:
             db_request = MakeRequest(
                 request_id=request_id,
                 user_id=user_id,
                 status="processing",
-                request_data=request.dict(),
+                request_data=request_data,
                 retry_count=0,
-                max_retries=3
+                max_retries=settings.ARQ_MAX_TRIES
             )
+
             db.add(db_request)
             db.commit()
-            
-            # Schedule the 6-minute check for NEW requests only
-            asyncio.create_task(self._schedule_retry_check(request_id))
-        else:
-            # This is a retry - get existing request
-            db_request = db.query(MakeRequest).filter(MakeRequest.request_id == request_id).first()
-            if not db_request:
-                raise ValueError(f"Request {request_id} not found for retry")
-        
-        # Prepare callback URL
-        callback_url = f"{self.api_base_url}/api/callback/{request_id}"
-        
-        # Create payload
-        payload = MakeWebhookPayload(
-            **request.dict(exclude_none=True),
-            callback_url=callback_url,
-            request_id=request_id
-        )
-        
-        # Send to Make
-        async with httpx.AsyncClient() as client:
-            try:
-                logger.info(f"Sending to Make webhook: {self.webhook_url} (Request: {request_id})")
-                
-                response = await client.post(
-                    self.webhook_url,
-                    data=payload.json(),
-                    timeout=30.0,
-                    headers={
-                        "Content-Type": "application/json",
-                        "Accept": "application/json"
-                    }
-                )
-                
-                if response.status_code != 200:
-                    logger.error(f"Make webhook error: {response.status_code} - {response.text}")
-                    db_request.status = "error"
-                    db_request.error = "Failed to send to Make"
-                    db.commit()
-                    raise Exception("Failed to send request to processing service")
-                
-                logger.info(f"Request {request_id} sent to Make successfully")
-                
-                return ProcessingStatus(
-                    request_id=request_id,
-                    status="processing",
-                    message="Request sent for processing",
-                    created_at=db_request.created_at
-                )
-                
-            except Exception as e:
-                logger.error(f"Error sending to Make: {str(e)}")
-                db_request.status = "error"
-                db_request.error = str(e)
-                db.commit()
-                raise
-    
-    async def _schedule_retry_check(self, request_id: str):
-        """Schedule a check after 6 minutes to see if callback was received"""
-        logger.info(f"Scheduling retry check for {request_id} in 6 minutes")
-        
-        # Wait 6 minutes
-        await asyncio.sleep(7 * 60)  # 6 minutes = 360 seconds
-        
-        # Check if retry is needed
-        await self._check_and_retry(request_id)
-    
-    async def _check_and_retry(self, request_id: str):
-        """Check if callback was received, if not - retry the request"""
-        try:
-            # Get fresh database session
-            db = next(get_db())
-            
-            try:
-                # Get the request from database
-                db_request = db.query(MakeRequest).filter(
-                    MakeRequest.request_id == request_id
-                ).first()
-                
-                if not db_request:
-                    logger.warning(f"Request {request_id} not found for retry check")
-                    return
-                
-                # If callback was already received, do nothing
-                if db_request.callback_received_at is not None:
-                    logger.info(f"Request {request_id} already received callback, no retry needed")
-                    return
-                
-                # If we've exceeded max retries, mark as failed
-                if db_request.retry_count >= db_request.max_retries:
-                    logger.error(f"Request {request_id} exceeded max retries ({db_request.max_retries})")
-                    db_request.status = "failed"
-                    db_request.error = f"Failed after {db_request.max_retries} retry attempts"
-                    db.commit()
-                    
-                    # Notify user of permanent failure
-                    await self._notify_user_failure(request_id)
-                    return
-                
-                # Increment retry count
-                db_request.retry_count += 1
-                db.commit()
-                
-                logger.info(f"No callback received for {request_id}, attempting retry {db_request.retry_count}/{db_request.max_retries}")
-                
-                # Notify user of retry
-                await self._notify_user_retry(request_id, db_request.retry_count)
-                
-                # Recreate the original request and retry
-                original_request = MakeWebhookRequest(**db_request.request_data)
-                
-                # Retry the request (this will schedule another 6-minute check)
-                await self.send_to_make(original_request, db_request.user_id, db, request_id=request_id)
-                
-            finally:
-                db.close()
-                
+            db.refresh(db_request)
+
+            logger.info(f"Created request record {request_id} for user {user_id}")
+
+            return ProcessingStatus(
+                request_id=request_id,
+                status="processing",
+                message="Request queued for processing",
+                created_at=db_request.created_at
+            )
+
         except Exception as e:
-            logger.error(f"Error in retry check for {request_id}: {str(e)}")
-    
-    async def _notify_user_retry(self, request_id: str, retry_count: int):
-        """Notify user that request is being retried"""
-        try:
-            message = {
-                "request_id": request_id,
-                "status": "retrying",
-                "message": f"No response received, retrying request (attempt {retry_count})...",
-                "retry_count": retry_count
-            }
-            await manager.send_message(request_id, message)
-        except Exception as e:
-            logger.error(f"Error notifying user of retry for {request_id}: {str(e)}")
-    
-    async def _notify_user_failure(self, request_id: str):
-        """Notify user of permanent failure"""
-        try:
-            message = {
-                "request_id": request_id,
-                "status": "failed",
-                "message": "Request failed after multiple attempts. Please try submitting again.",
-                "error": "Request timed out after maximum retry attempts"
-            }
-            await manager.send_message(request_id, message)
-        except Exception as e:
-            logger.error(f"Error notifying permanent failure for {request_id}: {str(e)}")
-    
-    def update_request_status(self, request_id: str, result: str, status: str = "completed", error: Optional[str] = None, db: Session = None):
+            logger.error(f"Failed to create request record {request_id}: {str(e)}")
+            db.rollback()
+            raise
+
+    def update_request_status(
+            self,
+            request_id: str,
+            status: str = "completed",
+            result: Optional[str] = None,
+            error: Optional[str] = None,
+            sources: Optional[str] = None,
+            db: Session = None
+    ):
         """Update the status of a request in database"""
-        request = db.query(MakeRequest).filter(MakeRequest.request_id == request_id).first()
-        
-        if not request:
-            raise ValueError(f"Request {request_id} not found")
-        
-        # IMPORTANT: Mark callback as received to prevent retries
-        request.callback_received_at = datetime.utcnow()
-        request.status = status
-        request.result = result
-        request.completed_at = datetime.utcnow()
-        
-        if error:
-            request.error = error
-            
-        db.commit()
-        logger.info(f"Updated request {request_id} status to {status}, callback received at {request.callback_received_at}")
-    
+        try:
+            request = db.query(MakeRequest).filter(
+                MakeRequest.request_id == request_id
+            ).first()
+
+            if not request:
+                logger.error(f"Request {request_id} not found for status update")
+                raise ValueError(f"Request {request_id} not found")
+
+            # Update fields
+            request.status = status
+
+            if result is not None:
+                request.result = result
+
+            if error is not None:
+                request.error = error
+
+            if sources is not None:
+                request.sources = sources
+
+            # Mark as completed if final status
+            if status in ["completed", "failed", "error"]:
+                request.completed_at = datetime.utcnow()
+                request.callback_received_at = datetime.utcnow()
+
+            db.commit()
+            db.refresh(request)
+
+            logger.info(f"Updated request {request_id} status to {status}")
+
+        except Exception as e:
+            logger.error(f"Failed to update request {request_id}: {str(e)}")
+            db.rollback()
+            raise
+
+    def increment_retry_count(self, request_id: str, db: Session) -> bool:
+        """Increment retry count for a request"""
+        try:
+            request = db.query(MakeRequest).filter(
+                MakeRequest.request_id == request_id
+            ).first()
+
+            if not request:
+                logger.error(f"Request {request_id} not found for retry increment")
+                return False
+
+            request.retry_count += 1
+            db.commit()
+
+            logger.info(f"Incremented retry count for {request_id} to {request.retry_count}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to increment retry count for {request_id}: {str(e)}")
+            db.rollback()
+            return False
+
     def get_request_status(self, request_id: str, db: Session) -> Optional[ProcessingStatus]:
         """Get the current status of a request from database"""
-        request = db.query(MakeRequest).filter(MakeRequest.request_id == request_id).first()
-        
-        if not request:
+        try:
+            request = db.query(MakeRequest).filter(
+                MakeRequest.request_id == request_id
+            ).first()
+
+            if not request:
+                logger.warning(f"Request {request_id} not found")
+                return None
+
+            return ProcessingStatus(
+                request_id=request.request_id,
+                user_id=request.user_id,
+                status=request.status,
+                result=request.result,
+                error=request.error,
+                sources=request.sources,
+                created_at=request.created_at,
+                completed_at=request.completed_at,
+                retry_count=request.retry_count
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to get status for {request_id}: {str(e)}")
             return None
-        
-        return ProcessingStatus(
-            request_id=request.request_id,
-            status=request.status,
-            result=request.result,
-            error=request.error,
-            created_at=request.created_at,
-            completed_at=request.completed_at
-        )
-    
-    async def cleanup_old_requests(self, db: Session, days: int = 7):
-        """Clean up requests older than specified days"""
-        cutoff_date = datetime.utcnow() - timedelta(days=days)
-        
-        deleted = db.query(MakeRequest).filter(
-            MakeRequest.created_at < cutoff_date
-        ).delete()
-        
-        db.commit()
-        logger.info(f"Cleaned up {deleted} old requests")
 
     async def update_request_sources(self, request_id: str, sources: str, db: Session) -> bool:
         """Update sources for a specific request"""
@@ -241,21 +166,174 @@ class MakeService:
             request_record = db.query(MakeRequest).filter(
                 MakeRequest.request_id == request_id
             ).first()
-            
+
             if not request_record:
-                logger.error(f"Request {request_id} not found in database")
+                logger.error(f"Request {request_id} not found for sources update")
                 return False
-            
+
             request_record.sources = sources
             db.commit()
             db.refresh(request_record)
-            
-            logger.info(f"Sources updated successfully for request_id: {request_id}")
+
+            logger.info(f"Sources updated for request {request_id}")
             return True
-            
+
         except Exception as e:
-            logger.error(f"Failed to update sources for request_id {request_id}: {str(e)}")
+            logger.error(f"Failed to update sources for {request_id}: {str(e)}")
             db.rollback()
             return False
 
+    async def notify_user_status(
+            self,
+            request_id: str,
+            status: str,
+            message: str = None,
+            result: str = None,
+            error: str = None,
+            sources: str = None
+    ):
+        """Notify user via WebSocket about status changes"""
+        try:
+            notification = {
+                "request_id": request_id,
+                "status": status,
+                "timestamp": datetime.utcnow().isoformat()
+            }
+
+            if message:
+                notification["message"] = message
+            if result:
+                notification["result"] = result
+            if error:
+                notification["error"] = error
+            if sources:
+                notification["sources"] = sources
+
+            await manager.send_message(request_id, notification)
+            logger.info(f"Sent notification for {request_id}: {status}")
+
+        except Exception as e:
+            logger.error(f"Failed to notify user for {request_id}: {str(e)}")
+
+    async def cleanup_old_requests(self, db: Session, days: int = 7):
+        """Clean up requests older than specified days"""
+        try:
+            cutoff_date = datetime.utcnow() - timedelta(days=days)
+
+            # Only delete completed/failed requests to preserve processing ones
+            deleted = db.query(MakeRequest).filter(
+                MakeRequest.created_at < cutoff_date,
+                MakeRequest.status.in_(["completed", "failed", "error"])
+            ).delete(synchronize_session=False)
+
+            db.commit()
+            logger.info(f"Cleaned up {deleted} old requests older than {days} days")
+
+        except Exception as e:
+            logger.error(f"Failed to cleanup old requests: {str(e)}")
+            db.rollback()
+
+    async def get_user_requests(
+            self,
+            user_id: str,
+            db: Session,
+            limit: int = 10,
+            status_filter: Optional[str] = None
+    ) -> list[ProcessingStatus]:
+        """Get user's recent requests with optional status filter"""
+        try:
+            query = db.query(MakeRequest).filter(
+                MakeRequest.user_id == user_id
+            )
+
+            if status_filter:
+                query = query.filter(MakeRequest.status == status_filter)
+
+            requests = query.order_by(
+                MakeRequest.created_at.desc()
+            ).limit(limit).all()
+
+            return [
+                ProcessingStatus(
+                    request_id=req.request_id,
+                    user_id=req.user_id,
+                    status=req.status,
+                    result=req.result,
+                    error=req.error,
+                    sources=req.sources,
+                    created_at=req.created_at,
+                    completed_at=req.completed_at,
+                    retry_count=req.retry_count
+                )
+                for req in requests
+            ]
+
+        except Exception as e:
+            logger.error(f"Failed to get user requests for {user_id}: {str(e)}")
+            return []
+
+    # Legacy Make.com methods for backward compatibility
+    async def send_to_make(
+            self,
+            request: MakeWebhookRequest,
+            user_id: str,
+            db: Session,
+            request_id: Optional[str] = None
+    ) -> ProcessingStatus:
+        """Legacy method for Make.com integration (deprecated)"""
+        logger.warning("send_to_make is deprecated, use ARQ worker instead")
+
+        if not self.webhook_url:
+            raise ValueError("WEBHOOK_URL not configured for legacy Make.com support")
+
+        # Implementation kept for backward compatibility
+        # This should be removed once migration is complete
+        request_id = request_id or str(uuid.uuid4())
+
+        try:
+            # Create request record
+            status = await self.create_request_record(
+                request_id=request_id,
+                user_id=user_id,
+                request_data=request.dict(),
+                db=db
+            )
+
+            # Send to Make.com (legacy)
+            callback_url = f"{self.api_base_url}/api/callback/{request_id}"
+
+            payload = {
+                **request.dict(exclude_none=True),
+                "callback_url": callback_url,
+                "request_id": request_id
+            }
+
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.post(
+                    self.webhook_url,
+                    json=payload,
+                    headers={
+                        "Content-Type": "application/json",
+                        "Accept": "application/json"
+                    }
+                )
+
+                if response.status_code != 200:
+                    raise Exception(f"Make webhook error: {response.status_code}")
+
+            logger.info(f"Legacy request {request_id} sent to Make.com")
+            return status
+
+        except Exception as e:
+            logger.error(f"Legacy Make.com request failed: {str(e)}")
+            self.update_request_status(
+                request_id=request_id,
+                status="error",
+                error=str(e),
+                db=db
+            )
+            raise
+
+
+# Global service instance
 make_service = MakeService()
