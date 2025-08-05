@@ -430,7 +430,7 @@ async def generate_marketing_strategy(
                             ]
                         },
                         headers={
-                            "x-api-key": settings.OPENAI_API_KEY,
+                            "x-api-key": settings.PERPLEXITY_API_KEY,
                             "Content-Type": "application/json",
                             "anthropic-version": "2023-06-01"
                         }
