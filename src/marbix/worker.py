@@ -159,12 +159,15 @@ async def conduct_deep_research(request_data: Dict[str, Any], request_id: str) -
     """Conduct deep market research using Perplexity API with proper error handling"""
 
     try:
-        # Extract and validate business information
+        # ИСПРАВЛЕННЫЙ mapping полей
         business_type = request_data.get("business_type", "").strip()
         business_goal = request_data.get("business_goal", "").strip()
-        product_description = request_data.get("product_service_description", "").strip()
-        target_audience = request_data.get("target_audience", "").strip()
+        product_description = request_data.get("product_data", "").strip()  # ← ИСПРАВЛЕНО
+        target_audience = request_data.get("target_audience_info", "").strip()  # ← ИСПРАВЛЕНО
         location = request_data.get("location", "Global").strip()
+        company_name = request_data.get("company_name", "").strip()  # ← ДОБАВЛЕНО
+        competitors = request_data.get("competitors", "").strip()  # ← ДОБАВЛЕНО
+        current_volume = request_data.get("current_volume", "").strip()  # ← ДОБАВЛЕНО
 
         # Validate required fields
         if not business_type or not product_description:
@@ -173,16 +176,21 @@ async def conduct_deep_research(request_data: Dict[str, Any], request_id: str) -
                 "error": "Missing required business information"
             }
 
-        # Build comprehensive research prompt
+        # Обновленный research prompt
         research_prompt = f"""
-       Conduct comprehensive market research for this business:
+        Conduct comprehensive market research for this business:
 
-       🏢 BUSINESS CONTEXT:
-       • Business Type: {business_type}
-       • Business Goal: {business_goal}
-       • Product/Service: {product_description}
-       • Target Audience: {target_audience}
-       • Geographic Focus: {location}
+        🏢 BUSINESS CONTEXT:
+        • Company: {company_name}
+        • Business Type: {business_type}
+        • Business Goal: {business_goal}
+        • Product/Service: {product_description}
+        • Target Audience: {target_audience}
+        • Location: {location}
+        • Current Volume: {current_volume}
+        • Known Competitors: {competitors}
+
+        # остальной prompt без изменений...
 
        📊 REQUIRED RESEARCH AREAS:
 
