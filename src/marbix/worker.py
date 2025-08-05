@@ -255,6 +255,7 @@ async def conduct_deep_research(request_data: Dict[str, Any], request_id: str) -
                             "Content-Type": "application/json"
                         }
                     )
+                    print("😡😡😡",settings.PERPLEXITY_API_KEY)
 
                     if response.status_code == 200:
                         result = response.json()
