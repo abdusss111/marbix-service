@@ -42,6 +42,7 @@ class Settings(BaseSettings):
     # Perplexity / OpenAI API keys
     PERPLEXITY_API_KEY: str = Field(..., env="PERPLEXITY_API_KEY")
     OPENAI_API_KEY: str = Field(..., env="OPENAI_API_KEY")
+    ANTHROPIC_API_KEY: str = Field(..., env="ANTHROPIC_API_KEY")
 
     # Make.com webhook & API key (legacy)
     WEBHOOK_URL: Optional[str] = Field(None, env="WEBHOOK_URL")

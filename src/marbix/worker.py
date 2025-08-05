@@ -419,7 +419,7 @@ async def generate_marketing_strategy(
                     response = await client.post(
                         CLAUDE_API_URL,
                         json={
-                            "model": "claude-3-5-sonnet-20241022",
+                            "model": "claude-sonnet-4-20250514",
                             "max_tokens": 6000,
                             "temperature": 0.3,
                             "messages": [
@@ -430,7 +430,7 @@ async def generate_marketing_strategy(
                             ]
                         },
                         headers={
-                            "x-api-key": settings.PERPLEXITY_API_KEY,
+                            "x-api-key": settings.ANTHROPIC_API_KEY,
                             "Content-Type": "application/json",
                             "anthropic-version": "2023-06-01"
                         }
