@@ -389,9 +389,13 @@ async def generate_marketing_strategy(
 class WorkerSettings:
     functions = [generate_strategy]
     redis_settings = RedisSettings.from_dsn(settings.REDIS_URL)
-    job_timeout = settings.ARQ_JOB_TIMEOUT  # 30 minutes
+    job_timeout = settings.ARQ_JOB_TIMEOUT
     max_tries = settings.ARQ_MAX_TRIES
     retry_delay = settings.ARQ_RETRY_DELAY
+
+    # Добавить отладку
+    on_startup = lambda ctx: print("=== WORKER STARTED ===")
+    on_shutdown = lambda ctx: print("=== WORKER STOPPED ===")
 
     # Worker performance settings
     max_jobs = 5  # Reduced for intensive tasks
