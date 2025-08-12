@@ -28,7 +28,6 @@ try:
     GOOGLE_ADK_AVAILABLE = True
 except ImportError:
     GOOGLE_ADK_AVAILABLE = False
-    logger.warning("Google ADK not available. Install with: pip install google-adk")
 
 # Configure logging
 logger = logging.getLogger(__name__)
