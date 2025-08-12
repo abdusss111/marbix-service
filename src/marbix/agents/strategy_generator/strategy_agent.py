@@ -19,8 +19,7 @@ from marbix.crud.prompt import increment_prompt_usage
 try:
     from google.adk.agents import LlmAgent, InvocationContext
     from google.adk.models import Model
-    from google.adk.tools import BaseTool, ToolConfig
-    from google.adk.tools.function_tool import FunctionTool
+    from google.adk.tools.base_tool import BaseTool
     from google.adk.artifacts import InMemoryArtifactService
     from google.adk.memory import InMemoryMemoryService
     from google.adk.sessions import SessionService
@@ -28,6 +27,9 @@ try:
     GOOGLE_ADK_AVAILABLE = True
 except ImportError:
     GOOGLE_ADK_AVAILABLE = False
+    # Define a minimal BaseTool stub so module import doesn't crash if ADK is missing
+    class BaseTool:  # type: ignore
+        pass
 
 # Configure logging
 logger = logging.getLogger(__name__)
