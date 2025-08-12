@@ -68,6 +68,7 @@ class StrategyGenerationTool(BaseTool):
             research_output = kwargs.get("research_output", {})
             request_data = kwargs.get("request_data", {})
             request_id = kwargs.get("request_id", "unknown")
+            prompt_name = kwargs.get("prompt_name", "marketing_strategy_generator")
             
             logger.info(f"Strategy generation tool called for request {request_id}")
             
@@ -79,7 +80,7 @@ class StrategyGenerationTool(BaseTool):
                 }
             
             # Get strategy prompt from database
-            strategy_prompt = await self._get_strategy_prompt(request_data, research_output)
+            strategy_prompt = await self._get_strategy_prompt(prompt_name, request_data, research_output)
             if not strategy_prompt:
                 return {
                     "success": False,
@@ -116,7 +117,7 @@ class StrategyGenerationTool(BaseTool):
         required_fields = ["business_type", "business_goal"]
         return all(request_data.get(field) for field in required_fields)
     
-    async def _get_strategy_prompt(self, request_data: Dict[str, Any], research_output: Dict[str, Any]) -> Optional[str]:
+    async def _get_strategy_prompt(self, prompt_name: str, request_data: Dict[str, Any], research_output: Dict[str, Any]) -> Optional[str]:
         """Retrieve and format strategy prompt from database."""
         try:
             business_context = {
@@ -133,7 +134,7 @@ class StrategyGenerationTool(BaseTool):
                 "research_model_used": research_output.get("model_used", "Unknown")
             }
             
-            prompt = get_formatted_prompt(self.db, "marketing_strategy_generator", **business_context)
+            prompt = get_formatted_prompt(self.db, prompt_name, **business_context)
             return prompt
             
         except Exception as e:
@@ -281,7 +282,8 @@ class StrategyGeneratorAgent:
                 context,
                 research_output=research_output,
                 request_data=request_data,
-                request_id=request_id
+                request_id=request_id,
+                prompt_name=prompt_name
             )
             
             if result and hasattr(result, 'content'):

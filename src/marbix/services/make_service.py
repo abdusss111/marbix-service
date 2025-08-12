@@ -215,6 +215,59 @@ class MakeService:
         except Exception as e:
             logger.error(f"Failed to notify user for {request_id}: {str(e)}")
 
+    async def send_strategy_result(
+            self,
+            request_id: str,
+            strategy_text: str,
+            sources: Optional[str] = None,
+            chunk_size: int = 4000,
+    ) -> None:
+        """Send strategy text over WebSocket in chunks, then a completion message.
+
+        This avoids large single-payload messages and provides incremental delivery.
+        """
+        try:
+            if not strategy_text:
+                await self.notify_user_status(
+                    request_id=request_id,
+                    status="error",
+                    message="Empty strategy content",
+                    error="empty_strategy"
+                )
+                return
+
+            total_len = len(strategy_text)
+            total_chunks = (total_len + chunk_size - 1) // chunk_size
+
+            for i in range(total_chunks):
+                chunk = strategy_text[i * chunk_size:(i + 1) * chunk_size]
+                msg = {
+                    "request_id": request_id,
+                    "status": "processing",
+                    "type": "strategy_chunk",
+                    "seq": i + 1,
+                    "total": total_chunks,
+                    "chunk": chunk,
+                    "timestamp": datetime.utcnow().isoformat(),
+                }
+                await manager.send_message(request_id, msg)
+
+            # Final completion message
+            complete_msg = {
+                "request_id": request_id,
+                "status": "completed",
+                "type": "strategy_complete",
+                "timestamp": datetime.utcnow().isoformat(),
+            }
+            if sources:
+                complete_msg["sources"] = sources
+
+            await manager.send_message(request_id, complete_msg)
+            logger.info(f"Strategy streamed via WS for {request_id} in {total_chunks} chunks")
+
+        except Exception as e:
+            logger.error(f"Failed to stream strategy via WS for {request_id}: {str(e)}")
+
     async def cleanup_old_requests(self, db: Session, days: int = 7):
         """Clean up requests older than specified days"""
         try:
