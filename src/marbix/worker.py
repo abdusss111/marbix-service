@@ -10,7 +10,8 @@ from marbix.core.config import settings
 from marbix.core.deps import get_db
 from marbix.services.make_service import make_service
 from marbix.agents.researcher.researcher_agent import conduct_research_async
-from marbix.agents.strategy_generator import generate_strategy_async
+# FIX: Change this import to match your actual structure
+from marbix.agents.strategy_generator.strategy_agent import generate_strategy_async
 
 # Configure logging
 logging.basicConfig(
@@ -79,18 +80,19 @@ async def generate_strategy(ctx, request_id: str, user_id: str, request_data: Di
         await safe_notify_user(
             request_id=request_id,
             status="processing",
-            message="Research completed. Generating comprehensive marketing strategy...",
+            message="Research completed. Generating comprehensive marketing strategy using Google ADK...",
             sources=sources_text if sources_text else None
         )
 
-        # Step 4: Generate strategy via Strategy Agent (DB prompt: claude-prompt)
-        logger.info(f"Starting strategy generation for {request_id}")
+        # Step 4: Generate strategy via Google ADK Strategy Agent (DB prompt: claude-prompt)
+        logger.info(f"Starting Google ADK strategy generation for {request_id}")
         strategy_result = await generate_strategy_async(
             db=db,
             request_data=request_data,
             research_output=research_result,
             request_id=request_id,
             prompt_name="claude-prompt",
+            model_name="gemini-2.0-flash"  # ADD: Specify model explicitly
         )
 
         if not strategy_result.get("success"):
@@ -121,12 +123,12 @@ async def generate_strategy(ctx, request_id: str, user_id: str, request_data: Di
             await safe_notify_user(
                 request_id=request_id,
                 status="completed",
-                message="Complete marketing strategy generated successfully!",
+                message="Complete marketing strategy generated successfully using Google ADK!",
                 result=strategy_result["strategy"],
                 sources=sources_text if sources_text else None
             )
 
-        logger.info(f"Strategy generation completed successfully for {request_id}")
+        logger.info(f"Google ADK strategy generation completed successfully for {request_id}")
 
     except Exception as e:
         error_msg = str(e)
