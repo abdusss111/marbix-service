@@ -92,7 +92,7 @@ async def generate_strategy(ctx, request_id: str, user_id: str, request_data: Di
             research_output=research_result,
             request_id=request_id,
             prompt_name="claude-prompt",
-            model_name="claude-3-5-sonnet-20241022"  # FIXED: Use correct model name
+            model_name="claude-3-5-sonnet-20241022"  # Using Claude Sonnet 4
         )
 
         if not strategy_result.get("success"):
@@ -378,24 +378,39 @@ class WorkerSettings:
     job_timeout = settings.ARQ_JOB_TIMEOUT
     max_tries = settings.ARQ_MAX_TRIES
     retry_delay = settings.ARQ_RETRY_DELAY
+    
+    # Prevent multiple workers from running the same job
+    job_id_generator = lambda: f"marbix_worker_{datetime.now().timestamp()}"
 
     # Memory optimization settings
-    max_jobs = 2  # Reduced from 3 to prevent memory overload
-    keep_result = 3600  # Keep results for 1 hour (reduced from 2)
-    health_check_interval = 30  # More frequent health checks
+    max_jobs = 1  # Only 1 job at a time to prevent conflicts
+    keep_result = 1800  # Keep results for 30 minutes (reduced further)
+    health_check_interval = 10  # Very frequent health checks
+    retry_delay = 0  # Immediate retry on failure
     
     # Worker lifecycle
     @staticmethod
     async def on_startup(ctx):
         logger.info("=== ARQ WORKER STARTED ===")
-        # Clear any stale jobs on startup
+        
+        # Check if another worker is already running
         try:
             from arq.connections import ArqRedis
             arq_redis = ArqRedis.from_dsn(settings.REDIS_URL)
+            
+            # Check for existing workers
+            worker_info = await arq_redis.info()
+            active_workers = worker_info.get('connected_clients', 0)
+            
+            if active_workers > 1:
+                logger.warning(f"Multiple workers detected: {active_workers}. This may cause job conflicts.")
+            
+            # Clear any stale jobs on startup
             await arq_redis.flushdb()
             logger.info("Cleared Redis database on startup")
+            
         except Exception as e:
-            logger.warning(f"Failed to clear Redis on startup: {str(e)}")
+            logger.warning(f"Failed to check workers or clear Redis on startup: {str(e)}")
 
     @staticmethod
     async def on_shutdown(ctx):

@@ -1,36 +1,32 @@
 """
-Strategy Generator Agent Package using Google ADK.
+Strategy Generator Agent Package using Anthropic Claude API.
 """
 
 from .config import (
-    get_google_adk_config,
-    validate_configuration
+    get_anthropic_config,
+    validate_configuration,
+    get_model_config
 )
 
 try:
     from .strategy_agent import (
         StrategyGeneratorAgent,
-        StrategyGenerationTool,
         generate_strategy_async
     )
 except ImportError:
     class StrategyGeneratorAgent:
         def __init__(self, *args, **kwargs):
-            raise ImportError("Google ADK is not available")
-    
-    class StrategyGenerationTool:
-        def __init__(self, *args, **kwargs):
-            raise ImportError("Google ADK is not available")
+            raise ImportError("Strategy generator agent is not available")
     
     def generate_strategy_async(*args, **kwargs):
-        raise ImportError("Google ADK is not available")
+        raise ImportError("Strategy generator agent is not available")
 
 __all__ = [
     "StrategyGeneratorAgent",
-    "StrategyGenerationTool",
     "generate_strategy_async",
-    "get_google_adk_config",
-    "validate_configuration"
+    "get_anthropic_config",
+    "validate_configuration",
+    "get_model_config"
 ]
 
 __version__ = "1.0.0"

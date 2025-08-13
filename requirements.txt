@@ -20,4 +20,4 @@ passlib[bcrypt]>=1.7.4
 
 arq==0.25.0
 redis==5.0.1
-google-adk
+anthropic>=0.18.0
