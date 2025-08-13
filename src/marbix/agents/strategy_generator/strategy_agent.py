@@ -32,7 +32,9 @@ class StrategyGenerationTool(BaseTool):
     """Custom tool for strategy generation using Google ADK."""
     
     def __init__(self, db: Session):
-        super().__init__()
+        # BaseTool in ADK requires name and description
+        super().__init__(name="generate_marketing_strategy", description=
+            "Generate comprehensive marketing strategy based on research output and business data")
         self.db = db
     
     def __call__(
