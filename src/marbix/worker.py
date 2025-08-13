@@ -92,7 +92,7 @@ async def generate_strategy(ctx, request_id: str, user_id: str, request_data: Di
             research_output=research_result,
             request_id=request_id,
             prompt_name="claude-prompt",
-            model_name="claude-3-5-sonnet-20241022"  # Using Claude Sonnet 4
+            model_name="claude-sonnet-4-20250514"  # Using Claude Sonnet 4
         )
 
         if not strategy_result.get("success"):
@@ -286,7 +286,7 @@ async def strategy_only_workflow(ctx, request_id: str, user_id: str, request_dat
             research_output=research_output,
             request_id=request_id,
             prompt_name="claude-prompt",
-            model_name="claude-3-5-sonnet-20241022"
+            model_name="claude-sonnet-4-20250514"
         )
         
         if not strategy_result.get("success"):

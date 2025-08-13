@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 class StrategyGeneratorAgent:
     """Strategy generator agent using Anthropic Claude API."""
     
-    def __init__(self, db: Session, model_name: str = "claude-3-5-sonnet-20241022"):
+    def __init__(self, db: Session, model_name: str = "claude-sonnet-4-20250514"):
         """
         Initialize the strategy generator agent with Anthropic Claude.
         
@@ -169,10 +169,13 @@ Please generate a comprehensive marketing strategy based on the above research a
             business_context = {
                 "business_type": request_data.get("business_type", "").strip(),
                 "business_goal": request_data.get("business_goal", "").strip(),
-                "product_description": request_data.get("product_data", "").strip(),
-                "target_audience": request_data.get("target_audience_info", "").strip(),
+                "product_data": request_data.get("product_data", "").strip(),
+                "target_audience_info": request_data.get("target_audience_info", "").strip(),
                 "location": request_data.get("location", "").strip(),
                 "company_name": request_data.get("company_name", "").strip(),
+                "competitors": request_data.get("competitors", "").strip(),
+                "current_volume": request_data.get("current_volume", "").strip(),
+                "actions": request_data.get("actions", "").strip(),
                 "promotion_budget": request_data.get("promotion_budget", "").strip(),
                 "team_budget": request_data.get("team_budget", "").strip(),
                 "research_content": research_output.get("research_content", ""),
@@ -214,7 +217,7 @@ async def generate_strategy_async(
     research_output: Dict[str, Any],
     request_id: str,
     prompt_name: str,
-    model_name: str = "claude-3-5-sonnet-20241022"
+    model_name: str = "claude-sonnet-4-20250514"
 ) -> Dict[str, Any]:
     """
     Convenience function for generating strategies asynchronously using Claude.

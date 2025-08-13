@@ -14,7 +14,7 @@ def get_anthropic_config() -> Dict[str, Any]:
         Dictionary with Anthropic configuration
     """
     return {
-        "model_name": getattr(settings, 'STRATEGY_MODEL_NAME', 'claude-3-5-sonnet-20241022'),
+        "model_name": getattr(settings, 'STRATEGY_MODEL_NAME', 'claude-sonnet-4-20250514'),
         "max_tokens": getattr(settings, 'STRATEGY_MAX_TOKENS', 6000),
         "temperature": getattr(settings, 'STRATEGY_TEMPERATURE', 0.3),
         "api_key": getattr(settings, 'ANTHROPIC_API_KEY', None),
@@ -52,11 +52,12 @@ def get_model_config() -> Dict[str, Any]:
         Dictionary with model configuration
     """
     return {
-        "claude-3-5-sonnet-20241022": {
+        "claude-sonnet-4-20250514": {
             "max_tokens": 6000,
             "temperature": 0.3,
             "anthropic_version": "2023-06-01"
         },
+
         "claude-3-5-haiku-20241022": {
             "max_tokens": 4000,
             "temperature": 0.3,

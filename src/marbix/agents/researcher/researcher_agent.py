@@ -53,7 +53,7 @@ class ResearcherAgent:
         self, 
         request_data: Dict[str, Any], 
         request_id: str,
-        prompt_name: str = "business_research_agent"
+        prompt_name: str = "perplexity-prompt"
     ) -> Dict[str, Any]:
         """
         Conduct comprehensive market research using Perplexity API.
@@ -104,12 +104,13 @@ class ResearcherAgent:
             business_context = {
                 "business_type": request_data.get("business_type", "").strip(),
                 "business_goal": request_data.get("business_goal", "").strip(),
-                "product_description": request_data.get("product_data", "").strip(),
-                "target_audience": request_data.get("target_audience_info", "").strip(),
+                "product_data": request_data.get("product_data", "").strip(),
+                "target_audience_info": request_data.get("target_audience_info", "").strip(),
                 "location": request_data.get("location", "Global").strip(),
                 "company_name": request_data.get("company_name", "").strip(),
                 "competitors": request_data.get("competitors", "").strip(),
                 "current_volume": request_data.get("current_volume", "").strip(),
+                "actions": request_data.get("actions", "").strip(),
                 "promotion_budget": request_data.get("promotion_budget", "").strip(),
                 "team_budget": request_data.get("team_budget", "").strip()
             }
@@ -148,10 +149,6 @@ class ResearcherAgent:
                         json={
                             "model": MODEL_NAME,
                             "messages": [
-                                {
-                                    "role": "system",
-                                    "content": "You are a senior market research analyst. Provide detailed, data-driven insights with credible sources and actionable intelligence."
-                                },
                                 {
                                     "role": "user",
                                     "content": research_prompt
@@ -267,7 +264,7 @@ async def conduct_research_async(
     db: Session,
     request_data: Dict[str, Any],
     request_id: str,
-    prompt_name: str = "business_research_agent"
+    prompt_name: str = "perplexity-prompt"
 ) -> Dict[str, Any]:
     """
     Convenience function for conducting research asynchronously.
@@ -282,37 +279,3 @@ async def conduct_research_async(
     """
     agent = ResearcherAgent(db)
     return await agent.conduct_research(request_data, request_id, prompt_name)
-
-
-# Example usage in ARQ worker context
-async def example_worker_function(ctx, request_id: str, user_id: str, request_data: Dict[str, Any]):
-    """
-    Example of how to use the researcher agent in an ARQ worker.
-    
-    :param ctx: ARQ context
-    :param request_id: Request identifier
-    :param user_id: User identifier
-    :param request_data: Business data for research
-    """
-    from marbix.core.deps import get_db
-    
-    db = next(get_db())
-    try:
-        # Conduct research using the agent
-        research_result = await conduct_research_async(
-            db=db,
-            request_data=request_data,
-            request_id=request_id,
-            prompt_name="business_research_agent"  # This prompt should exist in your database
-        )
-        
-        if research_result.get("success"):
-            logger.info(f"Research completed successfully for {request_id}")
-            # Process research results...
-            return research_result
-        else:
-            logger.error(f"Research failed for {request_id}: {research_result.get('error')}")
-            raise Exception(f"Research failed: {research_result.get('error')}")
-            
-    finally:
-        db.close()
