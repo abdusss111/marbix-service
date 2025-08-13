@@ -192,10 +192,21 @@ class MakeService:
             error: str = None,
             sources: str = None
     ):
-        """Notify user via WebSocket about status changes"""
+        """Notify user via WebSocket about status changes with enhanced messaging"""
         try:
+            # Determine message type based on status
+            if status == "processing":
+                msg_type = "status_update"
+            elif status == "completed":
+                msg_type = "completion"
+            elif status == "error":
+                msg_type = "error"
+            else:
+                msg_type = "status_update"
+
             notification = {
                 "request_id": request_id,
+                "type": msg_type,
                 "status": status,
                 "timestamp": datetime.utcnow().isoformat()
             }
@@ -214,6 +225,14 @@ class MakeService:
 
         except Exception as e:
             logger.error(f"Failed to notify user for {request_id}: {str(e)}")
+
+    async def send_progress_update(self, request_id: str, stage: str, message: str, progress: float = None):
+        """Send progress update during processing stages"""
+        try:
+            await manager.send_progress_update(request_id, stage, message, progress)
+            logger.debug(f"Sent progress update for {request_id}: {stage} - {message}")
+        except Exception as e:
+            logger.error(f"Failed to send progress update for {request_id}: {str(e)}")
 
     async def send_strategy_result(
             self,
@@ -236,27 +255,42 @@ class MakeService:
                 )
                 return
 
+            # Send start of strategy generation
+            await self.send_progress_update(
+                request_id=request_id,
+                stage="strategy_generation",
+                message="Starting strategy generation...",
+                progress=0.0
+            )
+
             total_len = len(strategy_text)
             total_chunks = (total_len + chunk_size - 1) // chunk_size
 
             for i in range(total_chunks):
-                chunk = strategy_text[i * chunk_size:(i + 1) * chunk_size]
+                chunk = chunk_text = strategy_text[i * chunk_size:(i + 1) * chunk_size]
+                
+                # Calculate progress
+                progress = min(1.0, (i + 1) / total_chunks)
+                
                 msg = {
                     "request_id": request_id,
-                    "status": "processing",
                     "type": "strategy_chunk",
+                    "stage": "strategy_generation",
                     "seq": i + 1,
                     "total": total_chunks,
                     "chunk": chunk,
+                    "progress": progress,
                     "timestamp": datetime.utcnow().isoformat(),
                 }
                 await manager.send_message(request_id, msg)
 
-            # Final completion message
+            # Send completion message
             complete_msg = {
                 "request_id": request_id,
-                "status": "completed",
                 "type": "strategy_complete",
+                "status": "completed",
+                "stage": "strategy_generation",
+                "progress": 1.0,
                 "timestamp": datetime.utcnow().isoformat(),
             }
             if sources:
@@ -267,6 +301,14 @@ class MakeService:
 
         except Exception as e:
             logger.error(f"Failed to stream strategy via WS for {request_id}: {str(e)}")
+            # Fallback to simple notification
+            await self.notify_user_status(
+                request_id=request_id,
+                status="completed",
+                message="Strategy generated successfully",
+                result=strategy_text,
+                sources=sources
+            )
 
     async def cleanup_old_requests(self, db: Session, days: int = 7):
         """Clean up requests older than specified days"""

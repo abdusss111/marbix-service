@@ -50,9 +50,24 @@ async def generate_strategy(ctx, request_id: str, user_id: str, request_data: Di
             status="processing",
             message="Starting deep market research..."
         )
+        
+        # Send progress update
+        await make_service.send_progress_update(
+            request_id=request_id,
+            stage="research",
+            message="Starting deep market research...",
+            progress=0.1
+        )
 
         # Step 2: Deep research via Researcher Agent (DB prompt: perplexity-prompt)
         logger.info(f"Starting deep research for {request_id}")
+        await make_service.send_progress_update(
+            request_id=request_id,
+            stage="research",
+            message="Conducting deep market research...",
+            progress=0.2
+        )
+        
         research_result = await conduct_research_async(
             db=db,
             request_data=request_data,
@@ -63,6 +78,14 @@ async def generate_strategy(ctx, request_id: str, user_id: str, request_data: Di
         if not research_result.get("success"):
             error_msg = research_result.get("error", "Unknown research error")
             raise Exception(f"Research failed: {error_msg}")
+
+        # Research completed successfully
+        await make_service.send_progress_update(
+            request_id=request_id,
+            stage="research",
+            message="Research completed successfully!",
+            progress=0.5
+        )
 
         # Step 3: Update sources and notify progress
         sources_text = ""
@@ -80,12 +103,19 @@ async def generate_strategy(ctx, request_id: str, user_id: str, request_data: Di
         await safe_notify_user(
             request_id=request_id,
             status="processing",
-            message="Research completed. Generating comprehensive marketing strategy using Google ADK...",
+            message="Research completed. Generating comprehensive marketing strategy using Claude...",
             sources=sources_text if sources_text else None
         )
 
-        # Step 4: Generate strategy via Google ADK Strategy Agent (DB prompt: claude-prompt)
-        logger.info(f"Starting Google ADK strategy generation for {request_id}")
+        # Step 4: Generate strategy via Claude Strategy Agent (DB prompt: claude-prompt)
+        logger.info(f"Starting Claude strategy generation for {request_id}")
+        await make_service.send_progress_update(
+            request_id=request_id,
+            stage="strategy_generation",
+            message="Starting strategy generation...",
+            progress=0.6
+        )
+        
         strategy_result = await generate_strategy_async(
             db=db,
             request_data=request_data,
@@ -98,6 +128,14 @@ async def generate_strategy(ctx, request_id: str, user_id: str, request_data: Di
         if not strategy_result.get("success"):
             error_msg = strategy_result.get("error", "Unknown strategy error")
             raise Exception(f"Strategy generation failed: {error_msg}")
+
+        # Strategy generation completed
+        await make_service.send_progress_update(
+            request_id=request_id,
+            stage="strategy_generation",
+            message="Strategy generated successfully!",
+            progress=0.9
+        )
 
         # Step 5: Update database with success
         try:
@@ -184,7 +222,22 @@ async def research_only_workflow(ctx, request_id: str, user_id: str, request_dat
             message="Starting deep market research..."
         )
         
+        # Send progress update
+        await make_service.send_progress_update(
+            request_id=request_id,
+            stage="research",
+            message="Starting deep market research...",
+            progress=0.1
+        )
+        
         # Conduct research
+        await make_service.send_progress_update(
+            request_id=request_id,
+            stage="research",
+            message="Conducting deep market research...",
+            progress=0.3
+        )
+        
         research_result = await conduct_research_async(
             db=db,
             request_data=request_data,
@@ -194,6 +247,14 @@ async def research_only_workflow(ctx, request_id: str, user_id: str, request_dat
         
         if not research_result.get("success"):
             raise Exception(f"Research failed: {research_result.get('error', 'Unknown error')}")
+        
+        # Research completed successfully
+        await make_service.send_progress_update(
+            request_id=request_id,
+            stage="research",
+            message="Research completed successfully!",
+            progress=0.8
+        )
         
         # Update database with research results
         sources_text = ""
@@ -276,10 +337,25 @@ async def strategy_only_workflow(ctx, request_id: str, user_id: str, request_dat
         await safe_notify_user(
             request_id=request_id,
             status="processing",
-            message="Generating marketing strategy using Google ADK..."
+            message="Generating marketing strategy using Claude..."
+        )
+        
+        # Send progress update
+        await make_service.send_progress_update(
+            request_id=request_id,
+            stage="strategy_generation",
+            message="Starting strategy generation...",
+            progress=0.1
         )
         
         # Generate strategy
+        await make_service.send_progress_update(
+            request_id=request_id,
+            stage="strategy_generation",
+            message="Generating marketing strategy...",
+            progress=0.3
+        )
+        
         strategy_result = await generate_strategy_async(
             db=db,
             request_data=request_data,
@@ -291,6 +367,14 @@ async def strategy_only_workflow(ctx, request_id: str, user_id: str, request_dat
         
         if not strategy_result.get("success"):
             raise Exception(f"Strategy generation failed: {strategy_result.get('error', 'Unknown error')}")
+        
+        # Strategy generation completed
+        await make_service.send_progress_update(
+            request_id=request_id,
+            stage="strategy_generation",
+            message="Strategy generated successfully!",
+            progress=0.8
+        )
         
         # Update database
         make_service.update_request_status(

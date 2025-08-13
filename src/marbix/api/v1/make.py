@@ -222,78 +222,99 @@ async def get_status(
 
 @router.websocket("/ws/{request_id}")
 async def websocket_endpoint(websocket: WebSocket, request_id: str):
-   """WebSocket endpoint for real-time updates"""
-   await manager.connect(websocket, request_id)
+    """WebSocket endpoint for real-time updates with proper connection handling"""
+    await manager.connect(websocket, request_id)
 
-   try:
-       db = next(get_db())
+    try:
+        db = next(get_db())
 
-       # Check if result already available
-       status = make_service.get_request_status(request_id, db)
+        # Check if result already available
+        status = make_service.get_request_status(request_id, db)
 
-       if not status:
-           await websocket.send_json({
-               "request_id": request_id,
-               "status": "error",
-               "error": "Request not found"
-           })
-           await websocket.close()
-           return
+        if not status:
+            await manager.send_immediate_status(
+                request_id=request_id,
+                status="error",
+                error="Request not found"
+            )
+            await websocket.close()
+            return
 
-       if status.status in ["completed", "failed", "error"]:
-           # Send result immediately if already completed
-           message = WebSocketMessage(
-               request_id=request_id,
-               status=status.status,
-               result=status.result,
-               error=status.error
-           )
-           await websocket.send_json(message.dict())
-           await websocket.close()
-           return
-       else:
-           # Send current status
-           message = WebSocketMessage(
-               request_id=request_id,
-               status="processing",
-               message="Processing your request..."
-           )
-           await websocket.send_json(message.dict())
+        # Send immediate status based on current state
+        if status.status in ["completed", "failed", "error"]:
+            # Request already completed - send final result
+            await manager.send_immediate_status(
+                request_id=request_id,
+                status=status.status,
+                result=status.result,
+                error=status.error
+            )
+            
+            # Also send sources if available
+            if status.sources:
+                await manager.send_message(request_id, {
+                    "request_id": request_id,
+                    "type": "sources_available",
+                    "sources": status.sources,
+                    "timestamp": datetime.utcnow().isoformat()
+                })
+        else:
+            # Request still processing - send current status
+            await manager.send_immediate_status(
+                request_id=request_id,
+                status=status.status,
+                message="Processing your request..."
+            )
 
-       # Keep connection alive with heartbeat
-       heartbeat_task = None
-       try:
-           # Start heartbeat
-           async def send_heartbeat():
-               while True:
-                   await asyncio.sleep(settings.WS_HEARTBEAT_INTERVAL)
-                   await websocket.send_json({"type": "heartbeat"})
+        # Keep connection alive with heartbeat and wait for updates
+        heartbeat_task = None
+        try:
+            # Start heartbeat
+            async def send_heartbeat():
+                while True:
+                    await asyncio.sleep(settings.WS_HEARTBEAT_INTERVAL)
+                    try:
+                        await websocket.send_json({"type": "heartbeat"})
+                    except Exception:
+                        break  # Connection lost, stop heartbeat
 
-           heartbeat_task = asyncio.create_task(send_heartbeat())
+            heartbeat_task = asyncio.create_task(send_heartbeat())
 
-           # Wait for client messages or completion
-           while True:
-               try:
-                   data = await asyncio.wait_for(
-                       websocket.receive_text(),
-                       timeout=settings.WS_CONNECTION_TIMEOUT
-                   )
+            # Wait for client messages or completion
+            while True:
+                try:
+                    data = await asyncio.wait_for(
+                        websocket.receive_text(),
+                        timeout=settings.WS_CONNECTION_TIMEOUT
+                    )
 
-                   if data == "ping":
-                       await websocket.send_text("pong")
+                    if data == "ping":
+                        await websocket.send_text("pong")
 
-               except asyncio.TimeoutError:
-                   logger.info(f"WebSocket timeout for {request_id}")
-                   break
+                except asyncio.TimeoutError:
+                    logger.info(f"WebSocket timeout for {request_id}")
+                    break
+                except Exception as e:
+                    logger.warning(f"WebSocket receive error for {request_id}: {e}")
+                    break
 
-       finally:
-           if heartbeat_task:
-               heartbeat_task.cancel()
+        finally:
+            if heartbeat_task:
+                heartbeat_task.cancel()
 
-   except Exception as e:
-       logger.error(f"WebSocket error for {request_id}: {str(e)}")
-   finally:
-       manager.disconnect(request_id)
+    except Exception as e:
+        logger.error(f"WebSocket error for {request_id}: {str(e)}")
+        # Send error message to client
+        try:
+            await manager.send_immediate_status(
+                request_id=request_id,
+                status="error",
+                error=f"WebSocket error: {str(e)}"
+            )
+        except Exception:
+            pass  # Client might already be disconnected
+    finally:
+        manager.disconnect(request_id)
 
 @router.post("/callback/{request_id}/sources")
 async def handle_sources_callback(
