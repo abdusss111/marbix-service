@@ -180,7 +180,8 @@ Please generate a comprehensive marketing strategy based on the above research a
                 "team_budget": request_data.get("team_budget", "").strip(),
                 "research_content": research_output.get("research_content", ""),
                 "research_sources_count": len(research_output.get("sources", [])),
-                "research_model_used": research_output.get("model_used", "")
+                "research_model_used": research_output.get("model_used", ""),
+                "citations": self._format_citations(research_output.get("sources", []))
             }
             
             prompt = get_formatted_prompt(self.db, prompt_name, **business_context)
@@ -199,6 +200,27 @@ Please generate a comprehensive marketing strategy based on the above research a
             return False
         
         return True
+    
+    def _format_citations(self, sources: List[str]) -> str:
+        """Format sources list into a readable citations string."""
+        try:
+            if not sources:
+                return "No sources available"
+            
+            # Format sources as numbered list
+            formatted_sources = []
+            for i, source in enumerate(sources[:10], 1):  # Limit to 10 sources
+                if source and source.startswith("http"):
+                    formatted_sources.append(f"{i}. {source}")
+            
+            if formatted_sources:
+                return "\n".join(formatted_sources)
+            else:
+                return "No valid sources available"
+                
+        except Exception as e:
+            logger.warning(f"Failed to format citations: {str(e)}")
+            return "Error formatting sources"
     
     async def _increment_prompt_usage(self, prompt_name: str):
         """Increment usage count for the strategy prompt."""
