@@ -171,20 +171,26 @@ class StrategyGeneratorAgent:
                     "error": "Invalid research output provided"
                 }
             
-            input_message = f"""
-            Generate a comprehensive marketing strategy for:
-            Business Type: {request_data.get('business_type', '')}
-            Business Goal: {request_data.get('business_goal', '')}
-            Request ID: {request_id}
-            
-            Use the generate_marketing_strategy tool to get the detailed prompt from the database 
-            using prompt name: {prompt_name}
-            """
-            
-            result = self.agent.generate_content(input_message)
-            
-            if result:
-                strategy_content = self._extract_content_from_result(result)
+            # Use ADK run_async with proper context; tool fetches DB prompt
+            context = InvocationContext(
+                agent=self.agent,
+                user_content=f"Generate marketing strategy for business: {request_data.get('business_type', 'Unknown')}",
+                invocation_id=request_id,
+                artifact_service=self.artifact_service,
+                memory_service=self.memory_service,
+                session_service=self.session_service,
+            )
+
+            result = await self.agent.run_async(
+                context,
+                research_output=research_output,
+                request_data=request_data,
+                request_id=request_id,
+                prompt_name=prompt_name,
+            )
+
+            if result and hasattr(result, 'content'):
+                strategy_content = result.content
                 
                 await self._increment_prompt_usage(prompt_name)
                 
@@ -211,22 +217,7 @@ class StrategyGeneratorAgent:
                 "error": error_msg
             }
     
-    def _extract_content_from_result(self, result) -> str:
-        """Extract content from ADK agent result."""
-        try:
-            if hasattr(result, 'content'):
-                return result.content
-            elif hasattr(result, 'text'):
-                return result.text
-            elif isinstance(result, str):
-                return result
-            elif isinstance(result, dict):
-                return result.get('content', result.get('text', str(result)))
-            else:
-                return str(result)
-        except Exception as e:
-            logger.warning(f"Failed to extract content from result: {str(e)}")
-            return str(result)
+
     
     def _validate_research_output(self, research_output: Dict[str, Any]) -> bool:
         """Validate that research output contains required fields."""
