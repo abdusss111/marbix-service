@@ -15,15 +15,19 @@ from marbix.crud.prompt import increment_prompt_usage, get_prompt_by_name
 
 # Google ADK imports
 try:
-    from google.adk.agents import Agent
-    from google.adk.tools import BaseTool, ToolContext
+    from google.adk.agents import LlmAgent, InvocationContext
+    from google.adk.models import Model
+    from google.adk.tools.base_tool import BaseTool
+    from google.adk.artifacts import InMemoryArtifactService
+    from google.adk.memory import InMemoryMemoryService
+    from google.adk.sessions import SessionService
+    from google.adk.platform import Platform
     GOOGLE_ADK_AVAILABLE = True
 except ImportError:
     GOOGLE_ADK_AVAILABLE = False
     class BaseTool:
-        pass
-    class ToolContext:
-        pass
+        def __init__(self, *args, **kwargs):
+            pass
 
 logger = logging.getLogger(__name__)
 
@@ -37,55 +41,26 @@ class StrategyGenerationTool(BaseTool):
             "Generate comprehensive marketing strategy based on research output and business data")
         self.db = db
     
-    def __call__(
-        self, 
-        context: ToolContext,
-        research_output: Dict[str, Any],
-        request_data: Dict[str, Any],
-        request_id: str,
-        prompt_name: str
-    ) -> Dict[str, Any]:
-        """
-        Execute strategy generation tool.
-        
-        Args:
-            context: ADK tool context
-            research_output: Output from the researcher agent
-            request_data: Original business request data
-            request_id: Unique identifier for the request
-            prompt_name: Name of the prompt to retrieve from database
-            
-        Returns:
-            Generated strategy prompt and context
-        """
+    async def run_async(self, context: Any, **kwargs) -> Dict[str, Any]:
+        """ADK tool entry: fetch formatted prompt from DB."""
         try:
-            # Validate inputs
+            research_output: Dict[str, Any] = kwargs.get("research_output", {})
+            request_data: Dict[str, Any] = kwargs.get("request_data", {})
+            request_id: str = kwargs.get("request_id", "unknown")
+            prompt_name: str = kwargs.get("prompt_name", "marketing_strategy_generator")
+
             if not self._validate_inputs(research_output, request_data):
-                return {
-                    "success": False,
-                    "error": "Invalid input data provided"
-                }
-            
-            # Get strategy prompt from database
+                return {"success": False, "error": "Invalid input data provided"}
+
             strategy_prompt = self._get_strategy_prompt(prompt_name, request_data, research_output)
             if not strategy_prompt:
-                return {
-                    "success": False,
-                    "error": "Strategy prompt not found in database"
-                }
-            
-            return {
-                "success": True,
-                "prompt": strategy_prompt,
-                "request_id": request_id
-            }
-            
+                return {"success": False, "error": "Strategy prompt not found in database"}
+
+            return {"success": True, "prompt": strategy_prompt, "request_id": request_id}
+
         except Exception as e:
             logger.error(f"Strategy generation tool error: {str(e)}")
-            return {
-                "success": False,
-                "error": f"Tool execution failed: {str(e)}"
-            }
+            return {"success": False, "error": f"Tool execution failed: {str(e)}"}
     
     def _validate_inputs(self, research_output: Dict[str, Any], request_data: Dict[str, Any]) -> bool:
         """Validate input data for strategy generation."""
@@ -126,7 +101,7 @@ class StrategyGenerationTool(BaseTool):
 class StrategyGeneratorAgent:
     """Strategy generator agent using Google ADK framework."""
     
-    def __init__(self, db: Session, model_name: str = "gemini-2.0-flash"):
+    def __init__(self, db: Session, model_name: str = "claude-3-5-sonnet-20241022"):
         """
         Initialize the strategy generator agent with Google ADK.
         
@@ -196,24 +171,20 @@ class StrategyGeneratorAgent:
                     "error": "Invalid research output provided"
                 }
             
-            # Create invocation context for ADK agent
-            context = InvocationContext(
-                agent=self.agent,
-                user_content=f"Generate marketing strategy for business: {request_data.get('business_type', 'Unknown')}",
-                invocation_id=request_id,
-            )
-
-            # Run ADK agent; tool receives prompt_name & inputs
-            result = await self.agent.run_async(
-                context,
-                research_output=research_output,
-                request_data=request_data,
-                request_id=request_id,
-                prompt_name=prompt_name,
-            )
-
-            if result and hasattr(result, 'content'):
-                strategy_content = result.content
+            input_message = f"""
+            Generate a comprehensive marketing strategy for:
+            Business Type: {request_data.get('business_type', '')}
+            Business Goal: {request_data.get('business_goal', '')}
+            Request ID: {request_id}
+            
+            Use the generate_marketing_strategy tool to get the detailed prompt from the database 
+            using prompt name: {prompt_name}
+            """
+            
+            result = self.agent.generate_content(input_message)
+            
+            if result:
+                strategy_content = self._extract_content_from_result(result)
                 
                 await self._increment_prompt_usage(prompt_name)
                 
