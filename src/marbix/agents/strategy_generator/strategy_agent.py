@@ -6,7 +6,7 @@ clear, actionable marketing strategies using Claude Sonnet 4.
 """
 
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from datetime import datetime
 from sqlalchemy.orm import Session
 import httpx
