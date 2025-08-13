@@ -196,20 +196,24 @@ class StrategyGeneratorAgent:
                     "error": "Invalid research output provided"
                 }
             
-            input_message = f"""
-            Generate a comprehensive marketing strategy for:
-            Business Type: {request_data.get('business_type', '')}
-            Business Goal: {request_data.get('business_goal', '')}
-            Request ID: {request_id}
-            
-            Use the generate_marketing_strategy tool to get the detailed prompt from the database 
-            using prompt name: {prompt_name}
-            """
-            
-            result = self.agent.generate_content(input_message)
-            
-            if result:
-                strategy_content = self._extract_content_from_result(result)
+            # Create invocation context for ADK agent
+            context = InvocationContext(
+                agent=self.agent,
+                user_content=f"Generate marketing strategy for business: {request_data.get('business_type', 'Unknown')}",
+                invocation_id=request_id,
+            )
+
+            # Run ADK agent; tool receives prompt_name & inputs
+            result = await self.agent.run_async(
+                context,
+                research_output=research_output,
+                request_data=request_data,
+                request_id=request_id,
+                prompt_name=prompt_name,
+            )
+
+            if result and hasattr(result, 'content'):
+                strategy_content = result.content
                 
                 await self._increment_prompt_usage(prompt_name)
                 
