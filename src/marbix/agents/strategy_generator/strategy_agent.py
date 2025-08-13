@@ -94,7 +94,7 @@ class StrategyGeneratorAgent:
             else:
                 return {
                     "success": False,
-                    "error": "Claude API returned empty result"
+                    "error": "Claude API failed to generate strategy after all retry attempts"
                 }
                 
         except Exception as e:
@@ -106,10 +106,14 @@ class StrategyGeneratorAgent:
             }
     
     async def _make_strategy_request(self, prompt: str, research_output: Dict[str, Any]) -> Optional[str]:
-        """Make request to Claude API for strategy generation."""
-        try:
-            # Prepare the message content
-            message_content = f"""
+        """Make request to Claude API for strategy generation with retry logic."""
+        MAX_RETRIES = 3
+        RETRY_DELAY = 5
+        
+        for attempt in range(MAX_RETRIES):
+            try:
+                # Prepare the message content
+                message_content = f"""
 {prompt}
 
 RESEARCH OUTPUT:
@@ -120,48 +124,73 @@ SOURCES:
 
 Please generate a comprehensive marketing strategy based on the above research and prompt.
 """
-            
-            headers = {
-                "x-api-key": self.api_key,
-                "anthropic-version": "2023-06-01",
-                "content-type": "application/json"
-            }
-            
-            payload = {
-                "model": self.model_name,
-                "max_tokens": 6000,
-                "temperature": 0.3,
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": message_content
-                    }
-                ]
-            }
-            
-            async with httpx.AsyncClient(timeout=300.0) as client:
-                response = await client.post(
-                    self.base_url,
-                    headers=headers,
-                    json=payload
-                )
                 
-                if response.status_code == 200:
-                    result = response.json()
-                    content = result.get("content", [])
+                headers = {
+                    "x-api-key": self.api_key,
+                    "anthropic-version": "2023-06-01",
+                    "content-type": "application/json"
+                }
+                
+                payload = {
+                    "model": self.model_name,
+                    "max_tokens": 6000,
+                    "temperature": 0.3,
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": message_content
+                        }
+                    ]
+                }
+                
+                async with httpx.AsyncClient(timeout=300.0) as client:
+                    response = await client.post(
+                        self.base_url,
+                        headers=headers,
+                        json=payload
+                    )
                     
-                    if content and len(content) > 0:
-                        return content[0].get("text", "")
+                    if response.status_code == 200:
+                        result = response.json()
+                        content = result.get("content", [])
+                        
+                        if content and len(content) > 0:
+                            logger.info(f"Strategy generated successfully on attempt {attempt + 1}")
+                            return content[0].get("text", "")
+                        else:
+                            logger.warning("Claude response had no content")
+                            if attempt == MAX_RETRIES - 1:  # Last attempt
+                                return None
+                            continue
+                    
+                    elif response.status_code in [429, 502, 503, 504]:  # Rate limited or server errors
+                        wait_time = min(RETRY_DELAY * (2 ** attempt), 120)
+                        logger.warning(f"Claude API error {response.status_code}, waiting {wait_time}s before retry {attempt + 1}")
+                        await asyncio.sleep(wait_time)
+                        continue
+                    
                     else:
-                        logger.warning("Claude response had no content")
-                        return None
-                else:
-                    logger.error(f"Claude API error: {response.status_code} - {response.text}")
+                        error_text = response.text[:500]
+                        logger.error(f"Claude API error {response.status_code}: {error_text}")
+                        
+                        if attempt == MAX_RETRIES - 1:  # Last attempt
+                            return None
+                        
+                        await asyncio.sleep(RETRY_DELAY)
+                        
+            except httpx.TimeoutException:
+                logger.warning(f"Request timeout on attempt {attempt + 1}")
+                if attempt == MAX_RETRIES - 1:
                     return None
-                    
-        except Exception as e:
-            logger.error(f"Error making Claude API request: {str(e)}")
-            return None
+                await asyncio.sleep(RETRY_DELAY)
+                
+            except Exception as e:
+                logger.error(f"Unexpected error on attempt {attempt + 1}: {str(e)}")
+                if attempt == MAX_RETRIES - 1:
+                    return None
+                await asyncio.sleep(RETRY_DELAY)
+        
+        return None
     
     def _get_strategy_prompt(self, prompt_name: str, request_data: Dict[str, Any], research_output: Dict[str, Any]) -> Optional[str]:
         """Retrieve and format strategy prompt from database."""
