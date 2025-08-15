@@ -34,14 +34,15 @@ class MakeService:
             request_id: str,
             user_id: str,
             request_data: dict,
-            db: Session
+            db: Session,
+            initial_status: str = "processing"
     ) -> ProcessingStatus:
         """Create initial request record in database"""
         try:
             db_request = MakeRequest(
                 request_id=request_id,
                 user_id=user_id,
-                status="processing",
+                status=initial_status,
                 request_data=request_data,
                 retry_count=0,
                 max_retries=settings.ARQ_MAX_TRIES
@@ -55,8 +56,8 @@ class MakeService:
 
             return ProcessingStatus(
                 request_id=request_id,
-                status="processing",
-                message="Request queued for processing",
+                status=initial_status,
+                message="Request created and ready for processing",
                 created_at=db_request.created_at
             )
 

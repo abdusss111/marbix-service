@@ -31,7 +31,7 @@ async def process_request(
        current_user: User = Depends(get_current_user),
        db: Session = Depends(get_db)
 ):
-   """Initiate processing with ARQ worker after content filtering"""
+   """NEW FLOW: Initiate processing with immediate WebSocket connection and real-time updates"""
 
    try:
        logger.info(f"Processing strategy request from user {current_user.id}")
@@ -76,17 +76,49 @@ async def process_request(
        # 5. Generate unique request ID and create database record
        request_id = str(uuid.uuid4())
 
-       # Create initial request record
+       # Create initial request record with status "requested"
        status = await make_service.create_request_record(
            request_id=request_id,
            user_id=current_user.id,
            request_data=request.dict(),
-           db=db
+           db=db,
+           initial_status="requested"  # NEW: Start with "requested" status
        )
 
-       # 6. Queue job with ARQ worker
+       # 6. NEW: Immediately notify via WebSocket that request was created
+       try:
+           await manager.send_message(request_id, {
+               "request_id": request_id,
+               "type": "status_update",
+               "status": "requested",
+               "message": "Strategy request received and approved. Preparing to start processing...",
+               "progress": 0.0,
+               "timestamp": datetime.utcnow().isoformat()
+           })
+           logger.info(f"Sent initial WebSocket notification for {request_id}")
+       except Exception as ws_error:
+           logger.warning(f"Failed to send initial WebSocket notification: {str(ws_error)}")
+
+       # 7. Queue job with ARQ worker
        try:
            redis_pool = await create_pool(settings.redis_settings)
+
+           # Update status to "processing" before queuing
+           make_service.update_request_status(
+               request_id=request_id,
+               status="processing",
+               db=db
+           )
+
+           # Notify WebSocket of processing start
+           await manager.send_message(request_id, {
+               "request_id": request_id,
+               "type": "status_update", 
+               "status": "processing",
+               "message": "Strategy generation job queued. Starting processing...",
+               "progress": 0.05,
+               "timestamp": datetime.utcnow().isoformat()
+           })
 
            job = await redis_pool.enqueue_job(
                'generate_strategy',
@@ -100,8 +132,6 @@ async def process_request(
 
            logger.info(f"Strategy generation job queued. Request ID: {request_id}, Job ID: {job.job_id}")
 
-           # ARQ pool auto-manages connections - no manual close needed
-
        except Exception as redis_error:
            logger.error(f"Failed to queue job: {str(redis_error)}")
 
@@ -113,6 +143,16 @@ async def process_request(
                db=db
            )
 
+           # Notify WebSocket of error
+           await manager.send_message(request_id, {
+               "request_id": request_id,
+               "type": "error",
+               "status": "error",
+               "error": f"Failed to queue processing job: {str(redis_error)}",
+               "message": "Failed to queue your request for processing. Please try again later.",
+               "timestamp": datetime.utcnow().isoformat()
+           })
+
            return ProcessingStatus(
                request_id=request_id,
                status="error",
@@ -121,10 +161,11 @@ async def process_request(
                error=str(redis_error)
            )
 
+       # 8. NEW: Return immediately with request_id for WebSocket connection
        return ProcessingStatus(
            request_id=request_id,
            status="processing",
-           message="Your strategy generation has been queued and will be processed shortly.",
+           message="Strategy generation started. Connect to WebSocket for real-time updates.",
            created_at=datetime.utcnow()
        )
 
@@ -222,7 +263,7 @@ async def get_status(
 
 @router.websocket("/ws/{request_id}")
 async def websocket_endpoint(websocket: WebSocket, request_id: str):
-    """WebSocket endpoint for real-time updates with proper connection handling"""
+    """NEW FLOW: WebSocket endpoint for real-time strategy generation updates"""
     await manager.connect(websocket, request_id)
 
     try:
@@ -240,35 +281,63 @@ async def websocket_endpoint(websocket: WebSocket, request_id: str):
             await websocket.close()
             return
 
+        logger.info(f"WebSocket connected for {request_id} with status: {status.status}")
+
         # Send immediate status based on current state
-        if status.status in ["completed", "failed", "error"]:
-            # Request already completed - send final result with correct type
-            if status.status == "completed" and status.result:
-                # Send properly formatted completion message
-                await manager.send_message(request_id, {
-                    "request_id": request_id,
-                    "type": "strategy_complete",
-                    "status": "completed",
-                    "result": status.result,
-                    "sources": status.sources,
-                    "progress": 1.0,
-                    "timestamp": datetime.utcnow().isoformat()
-                })
-                logger.info(f"Sent immediate strategy completion for {request_id}")
-            else:
-                # Send error or other status
-                await manager.send_immediate_status(
-                    request_id=request_id,
-                    status=status.status,
-                    result=status.result,
-                    error=status.error
-                )
+        if status.status == "completed":
+            # Request already completed - send final result
+            await manager.send_message(request_id, {
+                "request_id": request_id,
+                "type": "strategy_complete",
+                "status": "completed",
+                "result": status.result,
+                "sources": status.sources,
+                "progress": 1.0,
+                "message": "Strategy generation already completed",
+                "timestamp": datetime.utcnow().isoformat()
+            })
+            logger.info(f"Sent immediate strategy completion for {request_id}")
+            
+        elif status.status == "error":
+            # Send error status
+            await manager.send_message(request_id, {
+                "request_id": request_id,
+                "type": "error",
+                "status": "error",
+                "error": status.error,
+                "message": "Strategy generation failed",
+                "progress": 0.0,
+                "timestamp": datetime.utcnow().isoformat()
+            })
+            
+        elif status.status == "requested":
+            # Just requested - notify client
+            await manager.send_message(request_id, {
+                "request_id": request_id,
+                "type": "status_update",
+                "status": "requested",
+                "message": "Request received. Waiting for worker to start processing...",
+                "progress": 0.0,
+                "timestamp": datetime.utcnow().isoformat()
+            })
+            
+        elif status.status == "processing":
+            # Currently processing - notify client
+            await manager.send_message(request_id, {
+                "request_id": request_id,
+                "type": "status_update",
+                "status": "processing",
+                "message": "Strategy generation in progress. You will receive real-time updates...",
+                "progress": 0.1,
+                "timestamp": datetime.utcnow().isoformat()
+            })
+            
         else:
-            # Request still processing - send current status
+            # Unknown status
             await manager.send_immediate_status(
                 request_id=request_id,
                 status=status.status,
-                message="Processing your request..."
+                message=f"Current status: {status.status}"
             )
 
         # Keep connection alive with heartbeat and wait for updates
