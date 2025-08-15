@@ -267,7 +267,7 @@ class MakeService:
             total_chunks = (total_len + chunk_size - 1) // chunk_size
 
             for i in range(total_chunks):
-                chunk = chunk_text = strategy_text[i * chunk_size:(i + 1) * chunk_size]
+                chunk = strategy_text[i * chunk_size:(i + 1) * chunk_size]
                 
                 # Calculate progress
                 progress = min(1.0, (i + 1) / total_chunks)
@@ -283,6 +283,9 @@ class MakeService:
                     "timestamp": datetime.utcnow().isoformat(),
                 }
                 await manager.send_message(request_id, msg)
+                
+                # Add small delay to prevent overwhelming the connection
+                await asyncio.sleep(0.01)
 
             # Send completion message
             complete_msg = {
@@ -301,14 +304,31 @@ class MakeService:
 
         except Exception as e:
             logger.error(f"Failed to stream strategy via WS for {request_id}: {str(e)}")
-            # Fallback to simple notification
-            await self.notify_user_status(
-                request_id=request_id,
-                status="completed",
-                message="Strategy generated successfully",
-                result=strategy_text,
-                sources=sources
-            )
+            # Fallback to complete strategy message instead of notify_user_status
+            try:
+                fallback_msg = {
+                    "request_id": request_id,
+                    "type": "strategy_complete",
+                    "status": "completed", 
+                    "result": strategy_text,
+                    "progress": 1.0,
+                    "timestamp": datetime.utcnow().isoformat()
+                }
+                if sources:
+                    fallback_msg["sources"] = sources
+                
+                await manager.send_message(request_id, fallback_msg)
+                logger.info(f"Sent fallback strategy completion message for {request_id}")
+            except Exception as fallback_err:
+                logger.error(f"Fallback strategy message also failed for {request_id}: {str(fallback_err)}")
+                # Last resort - use notify_user_status
+                await self.notify_user_status(
+                    request_id=request_id,
+                    status="completed",
+                    message="Strategy generated successfully",
+                    result=strategy_text,
+                    sources=sources
+                )
 
     async def cleanup_old_requests(self, db: Session, days: int = 7):
         """Clean up requests older than specified days"""

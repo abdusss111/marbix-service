@@ -121,8 +121,7 @@ async def generate_strategy(ctx, request_id: str, user_id: str, request_data: Di
             request_data=request_data,
             research_output=research_result,
             request_id=request_id,
-            prompt_name="claude-prompt",
-            model_name="claude-sonnet-4-20250514"  # Using Claude Sonnet 4
+            prompt_name="claude-prompt"
         )
 
         if not strategy_result.get("success"):
@@ -157,13 +156,32 @@ async def generate_strategy(ctx, request_id: str, user_id: str, request_data: Di
             )
         except Exception as ws_err:
             logger.warning(f"WS streaming failed, falling back to single message: {ws_err}")
-            await safe_notify_user(
-                request_id=request_id,
-                status="completed",
-                message="Complete marketing strategy generated successfully using Google ADK!",
-                result=strategy_result["strategy"],
-                sources=sources_text if sources_text else None
-            )
+            # Send a properly formatted completion message
+            try:
+                from marbix.core.websocket import manager
+                completion_msg = {
+                    "request_id": request_id,
+                    "type": "strategy_complete",
+                    "status": "completed",
+                    "result": strategy_result["strategy"],
+                    "progress": 1.0,
+                    "timestamp": datetime.now().isoformat()
+                }
+                if sources_text:
+                    completion_msg["sources"] = sources_text
+                
+                await manager.send_message(request_id, completion_msg)
+                logger.info(f"Sent fallback completion message for {request_id}")
+            except Exception as fallback_err:
+                logger.error(f"Fallback completion message failed for {request_id}: {str(fallback_err)}")
+                # Last resort - use safe_notify_user
+                await safe_notify_user(
+                    request_id=request_id,
+                    status="completed",
+                    message="Complete marketing strategy generated successfully!",
+                    result=strategy_result["strategy"],
+                    sources=sources_text if sources_text else None
+                )
 
         logger.info(f"Google ADK strategy generation completed successfully for {request_id}")
 
@@ -361,8 +379,7 @@ async def strategy_only_workflow(ctx, request_id: str, user_id: str, request_dat
             request_data=request_data,
             research_output=research_output,
             request_id=request_id,
-            prompt_name="claude-prompt",
-            model_name="claude-sonnet-4-20250514"
+            prompt_name="claude-prompt"
         )
         
         if not strategy_result.get("success"):
@@ -393,12 +410,31 @@ async def strategy_only_workflow(ctx, request_id: str, user_id: str, request_dat
             )
         except Exception as ws_err:
             logger.warning(f"WebSocket streaming failed: {ws_err}")
-            await safe_notify_user(
-                request_id=request_id,
-                status="completed",
-                message="Strategy generated successfully!",
-                result=strategy_result["strategy"]
-            )
+            # Send a properly formatted completion message
+            try:
+                from marbix.core.websocket import manager
+                completion_msg = {
+                    "request_id": request_id,
+                    "type": "strategy_complete",
+                    "status": "completed",
+                    "result": strategy_result["strategy"],
+                    "progress": 1.0,
+                    "timestamp": datetime.now().isoformat()
+                }
+                if research_output.get("sources"):
+                    completion_msg["sources"] = research_output.get("sources")
+                
+                await manager.send_message(request_id, completion_msg)
+                logger.info(f"Sent fallback completion message for {request_id}")
+            except Exception as fallback_err:
+                logger.error(f"Fallback completion message failed for {request_id}: {str(fallback_err)}")
+                # Last resort - use safe_notify_user
+                await safe_notify_user(
+                    request_id=request_id,
+                    status="completed",
+                    message="Strategy generated successfully!",
+                    result=strategy_result["strategy"]
+                )
         
         logger.info(f"Strategy-only workflow completed for {request_id}")
         

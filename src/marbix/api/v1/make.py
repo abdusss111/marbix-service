@@ -242,22 +242,27 @@ async def websocket_endpoint(websocket: WebSocket, request_id: str):
 
         # Send immediate status based on current state
         if status.status in ["completed", "failed", "error"]:
-            # Request already completed - send final result
-            await manager.send_immediate_status(
-                request_id=request_id,
-                status=status.status,
-                result=status.result,
-                error=status.error
-            )
-            
-            # Also send sources if available
-            if status.sources:
+            # Request already completed - send final result with correct type
+            if status.status == "completed" and status.result:
+                # Send properly formatted completion message
                 await manager.send_message(request_id, {
                     "request_id": request_id,
-                    "type": "sources_available",
+                    "type": "strategy_complete",
+                    "status": "completed",
+                    "result": status.result,
                     "sources": status.sources,
+                    "progress": 1.0,
                     "timestamp": datetime.utcnow().isoformat()
                 })
+                logger.info(f"Sent immediate strategy completion for {request_id}")
+            else:
+                # Send error or other status
+                await manager.send_immediate_status(
+                    request_id=request_id,
+                    status=status.status,
+                    result=status.result,
+                    error=status.error
+                )
         else:
             # Request still processing - send current status
             await manager.send_immediate_status(
