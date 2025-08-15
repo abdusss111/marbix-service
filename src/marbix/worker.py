@@ -212,6 +212,12 @@ async def generate_strategy(ctx, request_id: str, user_id: str, request_data: Di
         try:
             from marbix.core.websocket import manager
             
+            # Check if WebSocket connection is still active
+            if request_id in manager.active_connections:
+                logger.info(f"WebSocket still active for {request_id}, sending final completion")
+            else:
+                logger.warning(f"WebSocket connection lost for {request_id}, message will be cached")
+            
             # Send final completion message
             completion_msg = {
                 "request_id": request_id,
@@ -224,19 +230,30 @@ async def generate_strategy(ctx, request_id: str, user_id: str, request_data: Di
                 "timestamp": datetime.now().isoformat()
             }
             
+            logger.info(f"Sending completion message with result length: {len(strategy_result['strategy'])} chars")
             await manager.send_message(request_id, completion_msg)
-            logger.info(f"Sent final strategy completion via WebSocket for {request_id}")
+            logger.info(f"✅ Successfully sent final strategy completion via WebSocket for {request_id}")
+            
+            # Add a small delay to ensure message delivery
+            await asyncio.sleep(0.1)
             
         except Exception as ws_err:
-            logger.error(f"Failed to send final completion via WebSocket for {request_id}: {str(ws_err)}")
+            logger.error(f"❌ Failed to send final completion via WebSocket for {request_id}: {str(ws_err)}")
+            import traceback
+            logger.error(f"Full error traceback: {traceback.format_exc()}")
+            
             # Fallback - try again with safe_notify_user
-            await safe_notify_user(
-                request_id=request_id,
-                status="completed",
-                message="Complete marketing strategy generated successfully!",
-                result=strategy_result["strategy"],
-                sources=sources_text if sources_text else None
-            )
+            try:
+                await safe_notify_user(
+                    request_id=request_id,
+                    status="completed",
+                    message="Complete marketing strategy generated successfully!",
+                    result=strategy_result["strategy"],
+                    sources=sources_text if sources_text else None
+                )
+                logger.info(f"✅ Fallback notification sent successfully for {request_id}")
+            except Exception as fallback_err:
+                logger.error(f"❌ Even fallback notification failed for {request_id}: {str(fallback_err)}")
 
         logger.info(f"NEW FLOW: Strategy generation completed successfully for {request_id}")
 

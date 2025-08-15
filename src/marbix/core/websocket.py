@@ -42,30 +42,54 @@ class ConnectionManager:
 
     async def send_message(self, request_id: str, message: dict):
         """Send a message to a specific WebSocket connection and cache it"""
-        # Add timestamp if not present
-        if "timestamp" not in message:
-            message["timestamp"] = datetime.utcnow().isoformat()
-        
-        # Cache the message
-        if request_id not in self.cached_messages:
-            self.cached_messages[request_id] = []
-        self.cached_messages[request_id].append(message)
-        
-        # Keep only last 50 messages to prevent memory issues
-        if len(self.cached_messages[request_id]) > 50:
-            self.cached_messages[request_id] = self.cached_messages[request_id][-50:]
-        
-        # Send to active connection if available
-        if request_id in self.active_connections:
-            websocket = self.active_connections[request_id]
-            try:
-                await websocket.send_json(message)
-                logger.debug(f"Message sent to request_id: {request_id}")
-            except Exception as e:
-                logger.error(f"Error sending message to {request_id}: {e}")
-                self.disconnect(request_id)
-        else:
-            logger.debug(f"Message cached for disconnected request_id: {request_id}")
+        try:
+            # Add timestamp if not present
+            if "timestamp" not in message:
+                message["timestamp"] = datetime.utcnow().isoformat()
+            
+            # Cache the message
+            if request_id not in self.cached_messages:
+                self.cached_messages[request_id] = []
+            self.cached_messages[request_id].append(message)
+            
+            # Keep only last 50 messages to prevent memory issues
+            if len(self.cached_messages[request_id]) > 50:
+                self.cached_messages[request_id] = self.cached_messages[request_id][-50:]
+            
+            # Send to active connection if available
+            if request_id in self.active_connections:
+                websocket = self.active_connections[request_id]
+                try:
+                    # Log the message type and size for debugging
+                    msg_type = message.get("type", "unknown")
+                    msg_size = len(str(message))
+                    logger.info(f"Sending WebSocket message: type={msg_type}, size={msg_size}B to {request_id}")
+                    
+                    # Check for extremely large messages
+                    if msg_size > 1024 * 1024:  # 1MB limit
+                        logger.warning(f"Large WebSocket message detected: {msg_size}B for {request_id}")
+                        # Truncate very large results to prevent WebSocket issues
+                        if "result" in message and len(message["result"]) > 500000:  # 500KB
+                            original_length = len(message["result"])
+                            message["result"] = message["result"][:500000] + f"\n\n[Content truncated - original length: {original_length} characters]"
+                            logger.info(f"Truncated result from {original_length} to {len(message['result'])} chars")
+                    
+                    await websocket.send_json(message)
+                    logger.info(f"✅ Message successfully sent to request_id: {request_id}")
+                    
+                except Exception as e:
+                    logger.error(f"❌ Error sending WebSocket message to {request_id}: {e}")
+                    logger.error(f"Message type: {message.get('type', 'unknown')}")
+                    import traceback
+                    logger.error(f"Full traceback: {traceback.format_exc()}")
+                    self.disconnect(request_id)
+                    raise e  # Re-raise to trigger fallback in worker
+            else:
+                logger.warning(f"⚠️ No active connection for {request_id}, message cached only")
+                
+        except Exception as e:
+            logger.error(f"❌ Critical error in send_message for {request_id}: {e}")
+            raise e
 
     async def send_immediate_status(self, request_id: str, status: str, message: str = None, result: str = None, error: str = None):
         """Send immediate status update when client connects"""
