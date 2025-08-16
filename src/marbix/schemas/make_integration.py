@@ -36,8 +36,11 @@ class ProcessingStatus(BaseModel):
     message: Optional[str] = None
     result: Optional[str] = None
     error: Optional[str] = None
+    sources: Optional[str] = None  # Added missing sources field
     created_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
+    user_id: Optional[str] = None  # Added for completeness
+    retry_count: Optional[int] = None  # Added for completeness
 
 class WebSocketMessage(BaseModel):
     """Message sent through WebSocket"""
@@ -46,6 +49,7 @@ class WebSocketMessage(BaseModel):
     result: Optional[str] = None
     error: Optional[str] = None
     message: Optional[str] = None
+    sources: Optional[str] = None  # Added missing sources field
 
 class SourcesCallbackRequest(BaseModel):
     sources: List[str] = []
