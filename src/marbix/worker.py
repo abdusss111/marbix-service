@@ -71,8 +71,8 @@ async def generate_strategy(ctx, request_id: str, user_id: str, request_data: Di
         logger.info(f"Starting strategy generation for {request_id}")
         strategy_result = await generate_strategy_async(
             db=db,
-            business_context=request_data,
-            research_output=research_result["response"],
+            request_data=request_data,
+            research_output=research_result,
             request_id=request_id,
             prompt_name="claude-prompt"
         )
@@ -163,7 +163,7 @@ async def strategy_only_workflow(ctx, request_id: str, user_id: str, request_dat
         
         strategy_result = await generate_strategy_async(
             db=db,
-            business_context=request_data,
+            request_data=request_data,
             research_output=research_output,
             request_id=request_id,
             prompt_name="claude-prompt"
