@@ -296,171 +296,165 @@ async def debug_request_status(
 
 @router.websocket("/ws/{request_id}")
 async def websocket_endpoint(websocket: WebSocket, request_id: str):
-    """NEW FLOW: WebSocket endpoint for real-time strategy generation updates"""
+    """Simplified real-time WebSocket endpoint with database polling"""
     await manager.connect(websocket, request_id)
-
+    
     db = None
+    polling_task = None
+    heartbeat_task = None
+    
     try:
-        # Properly handle database session
         db = next(get_db())
-        logger.info(f"WebSocket: Database session created for {request_id}")
-
-        # Check if result already available
+        logger.info(f"🔌 WebSocket connected for {request_id}")
+        
+        # Check initial status
         status = make_service.get_request_status(request_id, db)
-        logger.info(f"WebSocket: Retrieved status for {request_id}: {status.status if status else 'NOT_FOUND'}")
-
         if not status:
-            logger.error(f"WebSocket: Request {request_id} not found in database")
-            await manager.send_immediate_status(
-                request_id=request_id,
-                status="error",
-                error="Request not found"
-            )
+            await websocket.send_json({
+                "type": "error",
+                "error": "Request not found",
+                "timestamp": datetime.utcnow().isoformat()
+            })
             await websocket.close()
             return
 
-        logger.info(f"WebSocket connected for {request_id} with status: {status.status}")
-        
-        # Debug manager state in API endpoint
-        debug_state = manager.debug_connection_state(request_id)
-        logger.info(f"🔍 API WebSocket Manager Debug State: {debug_state}")
-        
-        # Log detailed status information
+        # If already completed, send immediately and close
         if status.status == "completed":
-            result_length = len(status.result) if status.result else 0
-            sources_length = len(status.sources) if status.sources else 0
-            logger.info(f"WebSocket: Completed request found - result: {result_length} chars, sources: {sources_length} chars")
-
-        # Send immediate status based on current state
-        if status.status == "completed":
-            # Request already completed - send final result
-            logger.info(f"WebSocket: Sending immediate completion for {request_id}")
-            
-            completion_message = {
+            await websocket.send_json({
                 "request_id": request_id,
                 "type": "strategy_complete",
                 "status": "completed",
                 "result": status.result or "",
                 "sources": status.sources or "",
                 "progress": 1.0,
-                "message": "Strategy generation already completed",
+                "message": "Strategy completed",
                 "timestamp": datetime.utcnow().isoformat()
-            }
-            
-            # Log message details before sending
-            result_preview = (completion_message["result"][:100] + "...") if len(completion_message["result"]) > 100 else completion_message["result"]
-            logger.info(f"WebSocket: Completion message - result preview: '{result_preview}'")
-            
-            await manager.send_message(request_id, completion_message)
-            logger.info(f"✅ WebSocket: Sent immediate strategy completion for {request_id}")
-            
-            # Give time for message delivery then close connection
+            })
+            logger.info(f"✅ Sent completed strategy to {request_id}")
             await asyncio.sleep(0.5)
-            await websocket.close(code=1000, reason="Strategy completed")
+            await websocket.close(code=1000, reason="Completed")
             return
-            
-        elif status.status == "error":
-            # Send error status
-            await manager.send_message(request_id, {
+
+        # If error, send error and close
+        if status.status == "error":
+            await websocket.send_json({
                 "request_id": request_id,
                 "type": "error",
                 "status": "error",
-                "error": status.error,
-                "message": "Strategy generation failed",
-                "progress": 0.0,
+                "error": status.error or "Unknown error",
                 "timestamp": datetime.utcnow().isoformat()
             })
-            
-        elif status.status == "requested":
-            # Just requested - notify client
-            await manager.send_message(request_id, {
-                "request_id": request_id,
-                "type": "status_update",
-                "status": "requested",
-                "message": "Request received. Waiting for worker to start processing...",
-                "progress": 0.0,
-                "timestamp": datetime.utcnow().isoformat()
-            })
-            
-        elif status.status == "processing":
-            # Currently processing - notify client
-            await manager.send_message(request_id, {
-                "request_id": request_id,
-                "type": "status_update",
-                "status": "processing",
-                "message": "Strategy generation in progress. You will receive real-time updates...",
-                "progress": 0.1,
-                "timestamp": datetime.utcnow().isoformat()
-            })
-            
-        else:
-            # Unknown status
-            await manager.send_immediate_status(
-                request_id=request_id,
-                status=status.status,
-                message=f"Current status: {status.status}"
-            )
+            await websocket.close(code=1000, reason="Error")
+            return
 
-        # Keep connection alive with heartbeat and wait for updates
-        heartbeat_task = None
-        try:
-            # Start heartbeat
-            async def send_heartbeat():
-                while True:
-                    await asyncio.sleep(settings.WS_HEARTBEAT_INTERVAL)
-                    try:
-                        await websocket.send_json({"type": "heartbeat"})
-                    except Exception:
-                        break  # Connection lost, stop heartbeat
+        # Send initial status
+        await websocket.send_json({
+            "request_id": request_id,
+            "type": "status_update",
+            "status": status.status,
+            "message": f"Current status: {status.status}",
+            "progress": 0.1 if status.status == "processing" else 0.0,
+            "timestamp": datetime.utcnow().isoformat()
+        })
 
-            heartbeat_task = asyncio.create_task(send_heartbeat())
-
-            # Wait for client messages or completion
+        # Start polling for status updates
+        last_status = status.status
+        
+        async def poll_status():
+            nonlocal last_status
             while True:
                 try:
-                    data = await asyncio.wait_for(
-                        websocket.receive_text(),
-                        timeout=settings.WS_CONNECTION_TIMEOUT
-                    )
-
-                    if data == "ping":
-                        await websocket.send_text("pong")
-
-                except asyncio.TimeoutError:
-                    logger.info(f"WebSocket timeout for {request_id}")
-                    break
+                    await asyncio.sleep(2)  # Poll every 2 seconds
+                    current_status = make_service.get_request_status(request_id, db)
+                    
+                    if not current_status:
+                        break
+                        
+                    # Send update if status changed
+                    if current_status.status != last_status:
+                        if current_status.status == "completed":
+                            await websocket.send_json({
+                                "request_id": request_id,
+                                "type": "strategy_complete",
+                                "status": "completed",
+                                "result": current_status.result or "",
+                                "sources": current_status.sources or "",
+                                "progress": 1.0,
+                                "message": "Strategy generation completed!",
+                                "timestamp": datetime.utcnow().isoformat()
+                            })
+                            logger.info(f"✅ Strategy completed and sent to {request_id}")
+                            break
+                        elif current_status.status == "error":
+                            await websocket.send_json({
+                                "request_id": request_id,
+                                "type": "error",
+                                "status": "error",
+                                "error": current_status.error or "Unknown error",
+                                "timestamp": datetime.utcnow().isoformat()
+                            })
+                            break
+                        else:
+                            await websocket.send_json({
+                                "request_id": request_id,
+                                "type": "status_update",
+                                "status": current_status.status,
+                                "message": f"Status: {current_status.status}",
+                                "progress": 0.5 if current_status.status == "processing" else 0.1,
+                                "timestamp": datetime.utcnow().isoformat()
+                            })
+                        
+                        last_status = current_status.status
+                        
                 except Exception as e:
-                    logger.warning(f"WebSocket receive error for {request_id}: {e}")
+                    logger.error(f"Polling error for {request_id}: {e}")
                     break
 
-        finally:
-            if heartbeat_task:
-                heartbeat_task.cancel()
+        async def send_heartbeat():
+            while True:
+                try:
+                    await asyncio.sleep(30)  # Heartbeat every 30 seconds
+                    await websocket.send_json({"type": "heartbeat"})
+                except Exception:
+                    break
+
+        # Start background tasks
+        polling_task = asyncio.create_task(poll_status())
+        heartbeat_task = asyncio.create_task(send_heartbeat())
+
+        # Wait for client messages or completion
+        while True:
+            try:
+                data = await asyncio.wait_for(websocket.receive_text(), timeout=300)
+                if data == "ping":
+                    await websocket.send_text("pong")
+            except asyncio.TimeoutError:
+                logger.info(f"WebSocket timeout for {request_id}")
+                break
+            except Exception as e:
+                logger.warning(f"WebSocket receive error for {request_id}: {e}")
+                break
 
     except Exception as e:
-        logger.error(f"WebSocket error for {request_id}: {str(e)}")
-        import traceback
-        logger.error(f"WebSocket error traceback: {traceback.format_exc()}")
-        # Send error message to client
+        logger.error(f"WebSocket error for {request_id}: {e}")
         try:
-            await manager.send_immediate_status(
-                request_id=request_id,
-                status="error",
-                error=f"WebSocket error: {str(e)}"
-            )
-        except Exception:
-            pass  # Client might already be disconnected
+            await websocket.send_json({
+                "type": "error",
+                "error": f"WebSocket error: {str(e)}",
+                "timestamp": datetime.utcnow().isoformat()
+            })
+        except:
+            pass
     finally:
-        # Clean up database session
+        # Clean up tasks
+        if polling_task:
+            polling_task.cancel()
+        if heartbeat_task:
+            heartbeat_task.cancel()
         if db:
-            try:
-                db.close()
-                logger.info(f"WebSocket: Database session closed for {request_id}")
-            except Exception as db_error:
-                logger.warning(f"WebSocket: Error closing database session for {request_id}: {db_error}")
-        
+            db.close()
         manager.disconnect(request_id)
-        logger.info(f"WebSocket: Connection cleaned up for {request_id}")
+        logger.info(f"🔌❌ WebSocket cleaned up for {request_id}")
 
 @router.post("/callback/{request_id}/sources")
 async def handle_sources_callback(
