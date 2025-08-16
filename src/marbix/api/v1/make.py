@@ -321,6 +321,10 @@ async def websocket_endpoint(websocket: WebSocket, request_id: str):
 
         logger.info(f"WebSocket connected for {request_id} with status: {status.status}")
         
+        # Debug manager state in API endpoint
+        debug_state = manager.debug_connection_state(request_id)
+        logger.info(f"🔍 API WebSocket Manager Debug State: {debug_state}")
+        
         # Log detailed status information
         if status.status == "completed":
             result_length = len(status.result) if status.result else 0

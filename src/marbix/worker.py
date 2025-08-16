@@ -12,6 +12,8 @@ from marbix.services.make_service import make_service
 from marbix.agents.researcher.researcher_agent import conduct_research_async
 # FIX: Change this import to match your actual structure
 from marbix.agents.strategy_generator.strategy_agent import generate_strategy_async
+# Import WebSocket manager at module level to ensure same instance
+from marbix.core.websocket import manager
 
 # Configure logging
 logging.basicConfig(
@@ -27,7 +29,7 @@ async def send_realtime_status(request_id: str, status: str, message: str, progr
     NEW: Send real-time status updates via WebSocket manager
     """
     try:
-        from marbix.core.websocket import manager
+        # Use the global manager instance imported at module level
         
         status_msg = {
             "request_id": request_id,
@@ -210,13 +212,18 @@ async def generate_strategy(ctx, request_id: str, user_id: str, request_data: Di
 
         # Step 6: NEW FLOW - Send final completion via WebSocket with strategy content
         try:
-            from marbix.core.websocket import manager
+            # Use the global manager instance imported at module level
             
-            # Check if WebSocket connection is still active
+            # Check if WebSocket connection is still active and debug manager state
+            debug_state = manager.debug_connection_state(request_id)
+            logger.info(f"🔍 WebSocket Manager Debug State: {debug_state}")
+            
             if request_id in manager.active_connections:
-                logger.info(f"WebSocket still active for {request_id}, sending final completion")
+                logger.info(f"✅ WebSocket still active for {request_id}, sending final completion")
             else:
-                logger.warning(f"WebSocket connection lost for {request_id}, message will be cached")
+                logger.warning(f"⚠️ WebSocket connection lost for {request_id}, message will be cached")
+                logger.warning(f"🔍 Available connections: {list(manager.active_connections.keys())}")
+                logger.warning(f"🔍 Manager instance ID: {id(manager)}")
             
             # Send final completion message
             completion_msg = {
@@ -486,7 +493,7 @@ async def strategy_only_workflow(ctx, request_id: str, user_id: str, request_dat
             logger.warning(f"WebSocket streaming failed: {ws_err}")
             # Send a properly formatted completion message
             try:
-                from marbix.core.websocket import manager
+                # Use the global manager instance imported at module level
                 completion_msg = {
                     "request_id": request_id,
                     "type": "strategy_complete",

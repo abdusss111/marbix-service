@@ -21,16 +21,26 @@ class ConnectionManager:
         self.active_connections[request_id] = websocket
         self.connection_timestamps[request_id] = datetime.utcnow()
         
+        # Enhanced logging for debugging
+        logger.info(f"🔌 WebSocket connected for request_id: {request_id}")
+        logger.info(f"📊 Total active connections: {len(self.active_connections)}")
+        logger.info(f"🔑 Active connection IDs: {list(self.active_connections.keys())}")
+        
         # Send any cached messages immediately
         if request_id in self.cached_messages:
-            for cached_msg in self.cached_messages[request_id]:
+            cached_count = len(self.cached_messages[request_id])
+            logger.info(f"📤 Sending {cached_count} cached messages to {request_id}")
+            for i, cached_msg in enumerate(self.cached_messages[request_id]):
                 try:
                     await websocket.send_json(cached_msg)
+                    logger.info(f"✅ Sent cached message {i+1}/{cached_count} to {request_id}")
                 except Exception as e:
-                    logger.error(f"Failed to send cached message to {request_id}: {e}")
+                    logger.error(f"❌ Failed to send cached message {i+1} to {request_id}: {e}")
                     break
+        else:
+            logger.info(f"📭 No cached messages for {request_id}")
         
-        logger.info(f"WebSocket connected for request_id: {request_id}")
+        logger.info(f"✅ WebSocket setup completed for request_id: {request_id}")
 
     def disconnect(self, request_id: str):
         """Remove a WebSocket connection"""
@@ -38,7 +48,12 @@ class ConnectionManager:
             del self.active_connections[request_id]
             if request_id in self.connection_timestamps:
                 del self.connection_timestamps[request_id]
-            logger.info(f"WebSocket disconnected for request_id: {request_id}")
+            logger.info(f"🔌❌ WebSocket disconnected for request_id: {request_id}")
+            logger.info(f"📊 Remaining active connections: {len(self.active_connections)}")
+            logger.info(f"🔑 Remaining connection IDs: {list(self.active_connections.keys())}")
+        else:
+            logger.warning(f"⚠️ Attempted to disconnect non-existent connection: {request_id}")
+            logger.info(f"🔑 Current active connections: {list(self.active_connections.keys())}")
 
     async def send_message(self, request_id: str, message: dict):
         """Send a message to a specific WebSocket connection and cache it"""
@@ -63,16 +78,18 @@ class ConnectionManager:
                     # Log the message type and size for debugging
                     msg_type = message.get("type", "unknown")
                     msg_size = len(str(message))
-                    logger.info(f"Sending WebSocket message: type={msg_type}, size={msg_size}B to {request_id}")
+                    logger.info(f"📤 Sending WebSocket message: type={msg_type}, size={msg_size}B to {request_id}")
+                    logger.info(f"🔑 Connection exists in active_connections: {request_id in self.active_connections}")
+                    logger.info(f"📊 Active connections count: {len(self.active_connections)}")
                     
                     # Check for extremely large messages
                     if msg_size > 1024 * 1024:  # 1MB limit
-                        logger.warning(f"Large WebSocket message detected: {msg_size}B for {request_id}")
+                        logger.warning(f"⚠️ Large WebSocket message detected: {msg_size}B for {request_id}")
                         # Truncate very large results to prevent WebSocket issues
                         if "result" in message and len(message["result"]) > 500000:  # 500KB
                             original_length = len(message["result"])
                             message["result"] = message["result"][:500000] + f"\n\n[Content truncated - original length: {original_length} characters]"
-                            logger.info(f"Truncated result from {original_length} to {len(message['result'])} chars")
+                            logger.info(f"✂️ Truncated result from {original_length} to {len(message['result'])} chars")
                     
                     await websocket.send_json(message)
                     logger.info(f"✅ Message successfully sent to request_id: {request_id}")
@@ -86,6 +103,8 @@ class ConnectionManager:
                     raise e  # Re-raise to trigger fallback in worker
             else:
                 logger.warning(f"⚠️ No active connection for {request_id}, message cached only")
+                logger.info(f"🔑 Available connections: {list(self.active_connections.keys())}")
+                logger.info(f"📊 Total cached messages for {request_id}: {len(self.cached_messages.get(request_id, []))}")
                 
         except Exception as e:
             logger.error(f"❌ Critical error in send_message for {request_id}: {e}")
@@ -164,6 +183,19 @@ class ConnectionManager:
     def get_cached_message_count(self, request_id: str) -> int:
         """Get number of cached messages for a request"""
         return len(self.cached_messages.get(request_id, []))
+    
+    def debug_connection_state(self, request_id: str) -> dict:
+        """Debug method to inspect connection state"""
+        return {
+            "request_id": request_id,
+            "is_active": request_id in self.active_connections,
+            "total_active_connections": len(self.active_connections),
+            "active_connection_ids": list(self.active_connections.keys()),
+            "cached_messages_count": len(self.cached_messages.get(request_id, [])),
+            "has_timestamp": request_id in self.connection_timestamps,
+            "connection_timestamp": self.connection_timestamps.get(request_id, None),
+            "manager_instance_id": id(self)
+        }
 
 # Global instance
 manager = ConnectionManager()
