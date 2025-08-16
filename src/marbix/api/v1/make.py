@@ -261,18 +261,56 @@ async def get_status(
 
    return status
 
+@router.get("/debug/{request_id}")
+async def debug_request_status(
+       request_id: str,
+       db: Session = Depends(get_db)
+):
+   """Debug endpoint to check raw request status in database"""
+   try:
+       # Direct database query
+       from marbix.models.make_request import MakeRequest
+       request = db.query(MakeRequest).filter(
+           MakeRequest.request_id == request_id
+       ).first()
+       
+       if not request:
+           return {"error": "Request not found", "request_id": request_id}
+       
+       return {
+           "request_id": request.request_id,
+           "user_id": request.user_id,
+           "status": request.status,
+           "result_length": len(request.result) if request.result else 0,
+           "sources_length": len(request.sources) if request.sources else 0,
+           "error": request.error,
+           "created_at": request.created_at.isoformat() if request.created_at else None,
+           "completed_at": request.completed_at.isoformat() if request.completed_at else None,
+           "result_preview": request.result[:200] + "..." if request.result and len(request.result) > 200 else request.result,
+           "websocket_active": request_id in manager.active_connections,
+           "cached_messages_count": manager.get_cached_message_count(request_id)
+       }
+       
+   except Exception as e:
+       return {"error": str(e), "request_id": request_id}
+
 @router.websocket("/ws/{request_id}")
 async def websocket_endpoint(websocket: WebSocket, request_id: str):
     """NEW FLOW: WebSocket endpoint for real-time strategy generation updates"""
     await manager.connect(websocket, request_id)
 
+    db = None
     try:
+        # Properly handle database session
         db = next(get_db())
+        logger.info(f"WebSocket: Database session created for {request_id}")
 
         # Check if result already available
         status = make_service.get_request_status(request_id, db)
+        logger.info(f"WebSocket: Retrieved status for {request_id}: {status.status if status else 'NOT_FOUND'}")
 
         if not status:
+            logger.error(f"WebSocket: Request {request_id} not found in database")
             await manager.send_immediate_status(
                 request_id=request_id,
                 status="error",
@@ -282,21 +320,40 @@ async def websocket_endpoint(websocket: WebSocket, request_id: str):
             return
 
         logger.info(f"WebSocket connected for {request_id} with status: {status.status}")
+        
+        # Log detailed status information
+        if status.status == "completed":
+            result_length = len(status.result) if status.result else 0
+            sources_length = len(status.sources) if status.sources else 0
+            logger.info(f"WebSocket: Completed request found - result: {result_length} chars, sources: {sources_length} chars")
 
         # Send immediate status based on current state
         if status.status == "completed":
             # Request already completed - send final result
-            await manager.send_message(request_id, {
+            logger.info(f"WebSocket: Sending immediate completion for {request_id}")
+            
+            completion_message = {
                 "request_id": request_id,
                 "type": "strategy_complete",
                 "status": "completed",
-                "result": status.result,
-                "sources": status.sources,
+                "result": status.result or "",
+                "sources": status.sources or "",
                 "progress": 1.0,
                 "message": "Strategy generation already completed",
                 "timestamp": datetime.utcnow().isoformat()
-            })
-            logger.info(f"Sent immediate strategy completion for {request_id}")
+            }
+            
+            # Log message details before sending
+            result_preview = (completion_message["result"][:100] + "...") if len(completion_message["result"]) > 100 else completion_message["result"]
+            logger.info(f"WebSocket: Completion message - result preview: '{result_preview}'")
+            
+            await manager.send_message(request_id, completion_message)
+            logger.info(f"✅ WebSocket: Sent immediate strategy completion for {request_id}")
+            
+            # Give time for message delivery then close connection
+            await asyncio.sleep(0.5)
+            await websocket.close(code=1000, reason="Strategy completed")
+            return
             
         elif status.status == "error":
             # Send error status
@@ -378,6 +435,8 @@ async def websocket_endpoint(websocket: WebSocket, request_id: str):
 
     except Exception as e:
         logger.error(f"WebSocket error for {request_id}: {str(e)}")
+        import traceback
+        logger.error(f"WebSocket error traceback: {traceback.format_exc()}")
         # Send error message to client
         try:
             await manager.send_immediate_status(
@@ -388,7 +447,16 @@ async def websocket_endpoint(websocket: WebSocket, request_id: str):
         except Exception:
             pass  # Client might already be disconnected
     finally:
+        # Clean up database session
+        if db:
+            try:
+                db.close()
+                logger.info(f"WebSocket: Database session closed for {request_id}")
+            except Exception as db_error:
+                logger.warning(f"WebSocket: Error closing database session for {request_id}: {db_error}")
+        
         manager.disconnect(request_id)
+        logger.info(f"WebSocket: Connection cleaned up for {request_id}")
 
 @router.post("/callback/{request_id}/sources")
 async def handle_sources_callback(
