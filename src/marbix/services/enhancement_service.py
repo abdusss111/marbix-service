@@ -174,7 +174,7 @@ Follow the enhancement instructions carefully and provide a detailed, improved v
             fake_request_data = {"enhancement_mode": True}  # Minimal context since we're enhancing
             fake_research_output = {
                 "success": True,
-                "response": user_message,  # Use the section + prompt as "research"
+                "research_content": user_message,  # Use the section + prompt as "research"
                 "sources": [],
                 "model_used": "enhancement_mode"
             }
