@@ -257,10 +257,13 @@ async def enhance_strategy_workflow(ctx, enhancement_id: str, strategy_id: str, 
         successful_enhancements = 0
         total_sections = len(enhancement_sections)
         
-        # Process each enhancement section
-        for i, (section_name, prompt_type) in enumerate(enhancement_sections, 1):
+        # Process all enhancement sections IN PARALLEL for 9x speed boost
+        logger.info(f"Starting parallel enhancement of {total_sections} sections")
+        
+        async def enhance_single_section(section_name: str, prompt_type):
+            """Helper function to enhance a single section"""
             try:
-                logger.info(f"Processing enhancement {i}/{total_sections}: {section_name}")
+                logger.info(f"🚀 Starting parallel enhancement: {section_name}")
                 
                 # Enhance this specific section
                 result = await enhancement_service.enhance_strategy_section(
@@ -281,19 +284,35 @@ async def enhance_strategy_workflow(ctx, enhancement_id: str, strategy_id: str, 
                     )
                     
                     if save_success:
-                        successful_enhancements += 1
-                        logger.info(f"✅ Enhanced and saved section {section_name} ({i}/{total_sections})")
+                        logger.info(f"✅ Enhanced and saved section {section_name}")
+                        return True
                     else:
                         logger.error(f"❌ Failed to save enhanced section {section_name}")
+                        return False
                 else:
                     logger.error(f"❌ Failed to enhance section {section_name}: {result.error}")
-                
-                # Small delay between calls to prevent overwhelming the AI service
-                await asyncio.sleep(1)
+                    return False
                 
             except Exception as section_error:
                 logger.error(f"Error processing section {section_name}: {str(section_error)}")
-                continue
+                return False
+        
+        # Execute all sections in parallel using asyncio.gather
+        tasks = [
+            enhance_single_section(section_name, prompt_type) 
+            for section_name, prompt_type in enhancement_sections
+        ]
+        
+        # Wait for all sections to complete in parallel
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # Count successful enhancements
+        for i, result in enumerate(results):
+            section_name = enhancement_sections[i][0]
+            if isinstance(result, Exception):
+                logger.error(f"❌ Exception in section {section_name}: {result}")
+            elif result is True:
+                successful_enhancements += 1
         
         # Update final status
         if successful_enhancements == total_sections:
