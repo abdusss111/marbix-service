@@ -153,6 +153,5 @@ def get_users_by_subscription_status(db: Session, subscription_status: Subscript
     Returns users filtered by specific subscription status.
     """
     return db.query(User).filter(
-        User.role != UserRole.ADMIN,
         User.subscription_status == subscription_status
     ).order_by(desc(User.created_at)).all()
