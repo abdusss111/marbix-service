@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Body
 from sqlalchemy.orm import Session
 from marbix.core.deps import get_current_user, get_db
 from marbix.models.user import User
@@ -12,7 +12,7 @@ from marbix.models.make_request import MakeRequest
 from marbix.services.enhancement_service import enhancement_service
 from marbix.core.config import settings
 from arq import create_pool
-from typing import List
+from typing import List, Optional
 import logging
 
 router = APIRouter()
@@ -97,9 +97,9 @@ async def get_strategy_by_id(
 @router.post("/strategies/{strategy_id}/enhance", response_model=EnhancementResponse)
 async def enhance_strategy(
     strategy_id: str,
-    request: EnhancementRequest,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    request: Optional[EnhancementRequest] = Body(default=None)
 ):
     """
     Enhance a strategy with 9 detailed sections using AI generation.
