@@ -179,6 +179,21 @@ async def enhance_strategy(
         logger.error(f"Enhancement request failed for strategy {strategy_id}: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
+@router.get("/strategies/{strategy_id}/enhanced", response_model=EnhancedStrategyResponse)
+async def get_latest_enhanced_strategy(
+    strategy_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get the latest enhanced strategy for a given strategy ID"""
+    # Get the latest enhancement for this strategy
+    enhancement = enhancement_service.get_latest_enhancement_by_strategy_id(strategy_id, current_user.id, db)
+    
+    if not enhancement:
+        raise HTTPException(status_code=404, detail="No enhancement found for this strategy")
+    
+    return EnhancedStrategyResponse.from_orm(enhancement)
+
 @router.get("/strategies/{strategy_id}/enhancement/{enhancement_id}", response_model=EnhancedStrategyResponse)
 async def get_enhanced_strategy(
     strategy_id: str,

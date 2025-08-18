@@ -41,6 +41,18 @@ class EnhancementService:
     def get_enhancement_by_id(enhancement_id: str, db: Session) -> Optional[EnhancedStrategy]:
         """Get enhancement by ID"""
         return db.query(EnhancedStrategy).filter(EnhancedStrategy.id == enhancement_id).first()
+    
+    @staticmethod
+    def get_latest_enhancement_by_strategy_id(strategy_id: str, user_id: str, db: Session) -> Optional[EnhancedStrategy]:
+        """Get the latest enhancement for a given strategy ID and user"""
+        try:
+            return db.query(EnhancedStrategy).filter(
+                EnhancedStrategy.original_strategy_id == strategy_id,
+                EnhancedStrategy.user_id == user_id
+            ).order_by(EnhancedStrategy.created_at.desc()).first()
+        except Exception as e:
+            logger.error(f"Error getting latest enhancement for strategy {strategy_id}: {e}")
+            return None
 
     @staticmethod
     def get_strategy_by_id(strategy_id: str, db: Session) -> Optional[MakeRequest]:
