@@ -18,15 +18,15 @@ class EnhancementStatus(str, enum.Enum):
 
 class EnhancementPromptType(str, enum.Enum):
     """Types of enhancement prompts mapping to strategy sections"""
-    MARKET_ANALYSIS = "market_analysis"      # Analys_rynka
-    DRIVERS = "drivers"                      # Drivers  
-    COMPETITORS = "competitors"              # Competitors
-    CUSTOMER_JOURNEY = "customer_journey"    # Customer_Journey
-    PRODUCT = "product"                      # Product
-    COMMUNICATION = "communication"          # Communication
-    TEAM = "team"                           # TEAM
-    METRICS = "metrics"                     # Metrics
-    NEXT_STEPS = "next_steps"               # Next_Steps
+    MARKET_ANALYSIS = "PRO_Analys_rynka"      # Analys_rynka
+    DRIVERS = "PRO_Drivers"                   # Drivers  
+    COMPETITORS = "PRO_Competitors"           # Competitors
+    CUSTOMER_JOURNEY = "PRO_Customer_Journey" # Customer_Journey
+    PRODUCT = "PRO_Product"                   # Product
+    COMMUNICATION = "PRO_Communication"       # Communication
+    TEAM = "PRO_TEAM"                        # TEAM
+    METRICS = "PRO_Metrics"                  # Metrics
+    NEXT_STEPS = "PRO_Next_Steps"            # Next_Steps
 
 class EnhancedStrategy(Base):
     """Enhanced strategy with 9 detailed sections"""

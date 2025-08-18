@@ -3,27 +3,9 @@
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
-from enum import Enum
 
-class EnhancementStatus(str, Enum):
-    """Status of strategy enhancement"""
-    PENDING = "pending"
-    PROCESSING = "processing"
-    COMPLETED = "completed"
-    ERROR = "error"
-    PARTIAL = "partial"
-
-class EnhancementPromptType(str, Enum):
-    """Types of enhancement prompts mapping to strategy sections"""
-    MARKET_ANALYSIS = "market_analysis"      # Analys_rynka
-    DRIVERS = "drivers"                      # Drivers  
-    COMPETITORS = "competitors"              # Competitors
-    CUSTOMER_JOURNEY = "customer_journey"    # Customer_Journey
-    PRODUCT = "product"                      # Product
-    COMMUNICATION = "communication"          # Communication
-    TEAM = "team"                           # TEAM
-    METRICS = "metrics"                     # Metrics
-    NEXT_STEPS = "next_steps"               # Next_Steps
+# Import enums from models to avoid duplication
+from marbix.models.enhanced_strategy import EnhancementStatus, EnhancementPromptType
 
 class EnhancementRequest(BaseModel):
     """Request to enhance a strategy"""
