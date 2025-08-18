@@ -118,7 +118,7 @@ class EnhancementService:
             logger.info(f"Enhancing section {section_name} with prompt type {prompt_type}")
             
             # 1. Get prompt from database
-            prompt_record = get_prompt_by_name(prompt_type.value, db)
+            prompt_record = get_prompt_by_name(db, prompt_type.value)
             if not prompt_record:
                 error_msg = f"Prompt not found for type: {prompt_type.value}"
                 logger.error(error_msg)
@@ -168,7 +168,7 @@ Focus on enhancing this specific section: {current_section}
 
 Follow the enhancement instructions carefully and provide a detailed, improved version of this section."""
 
-            user_message = f"{current_section}\n\n{prompt_record.template}"
+            user_message = f"{current_section}\n\n{prompt_record.content}"
             
             # 4. Call strategy generation agent
             fake_business_context = {"enhancement_mode": True}  # Minimal context since we're enhancing
