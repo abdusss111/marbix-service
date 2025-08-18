@@ -1,4 +1,5 @@
 from sqlalchemy import Column, String, Text, DateTime, JSON, Integer
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from marbix.db.base import Base
 
@@ -19,3 +20,6 @@ class MakeRequest(Base):
     retry_count = Column(Integer, default=0)
     max_retries = Column(Integer, default=3)
     callback_received_at = Column(DateTime(timezone=True), nullable=True)
+    
+    # Relationship to enhanced strategies
+    enhancements = relationship("EnhancedStrategy", back_populates="original_strategy")

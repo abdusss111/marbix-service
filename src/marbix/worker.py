@@ -9,8 +9,10 @@ from arq.connections import RedisSettings
 from marbix.core.config import settings
 from marbix.core.deps import get_db
 from marbix.services.make_service import make_service
+from marbix.services.enhancement_service import enhancement_service
 from marbix.agents.researcher.researcher_agent import conduct_research_async
 from marbix.agents.strategy_generator.strategy_agent import generate_strategy_async
+from marbix.schemas.enhanced_strategy import EnhancementPromptType
 
 # Configure logging
 logging.basicConfig(
@@ -204,9 +206,140 @@ async def strategy_only_workflow(ctx, request_id: str, user_id: str, request_dat
             db.close()
 
 
+async def enhance_strategy_workflow(ctx, enhancement_id: str, strategy_id: str, user_id: str, **kwargs):
+    """
+    ENHANCEMENT WORKFLOW: Process strategy enhancement with 9 separate AI calls
+    """
+    db = None
+    try:
+        logger.info(f"Starting strategy enhancement workflow for {enhancement_id}")
+        
+        # Get database session
+        try:
+            db = next(get_db())
+        except Exception as db_error:
+            logger.error(f"Database connection failed: {str(db_error)}")
+            raise Exception("Database connection failed")
+        
+        # Get original strategy
+        original_strategy = enhancement_service.get_strategy_by_id(strategy_id, db)
+        if not original_strategy or not original_strategy.result:
+            raise Exception(f"Original strategy {strategy_id} not found or incomplete")
+        
+        if original_strategy.status != "completed":
+            raise Exception(f"Original strategy {strategy_id} is not completed (status: {original_strategy.status})")
+        
+        strategy_text = original_strategy.result
+        logger.info(f"Retrieved original strategy {strategy_id} ({len(strategy_text)} chars)")
+        
+        # Update status to processing
+        enhancement_service.update_enhancement_status(
+            enhancement_id=enhancement_id,
+            status="processing",
+            db=db
+        )
+        
+        # Define enhancement sections with their corresponding prompt types
+        enhancement_sections = [
+            ("Analys_rynka", EnhancementPromptType.MARKET_ANALYSIS),
+            ("Drivers", EnhancementPromptType.DRIVERS),
+            ("Competitors", EnhancementPromptType.COMPETITORS),
+            ("Customer_Journey", EnhancementPromptType.CUSTOMER_JOURNEY),
+            ("Product", EnhancementPromptType.PRODUCT),
+            ("Communication", EnhancementPromptType.COMMUNICATION),
+            ("TEAM", EnhancementPromptType.TEAM),
+            ("Metrics", EnhancementPromptType.METRICS),
+            ("Next_Steps", EnhancementPromptType.NEXT_STEPS),
+        ]
+        
+        successful_enhancements = 0
+        total_sections = len(enhancement_sections)
+        
+        # Process each enhancement section
+        for i, (section_name, prompt_type) in enumerate(enhancement_sections, 1):
+            try:
+                logger.info(f"Processing enhancement {i}/{total_sections}: {section_name}")
+                
+                # Enhance this specific section
+                result = await enhancement_service.enhance_strategy_section(
+                    enhancement_id=enhancement_id,
+                    section_name=section_name,
+                    prompt_type=prompt_type,
+                    original_strategy=strategy_text,
+                    db=db
+                )
+                
+                if result.success:
+                    # Save enhanced section to database
+                    save_success = enhancement_service.save_enhanced_section(
+                        enhancement_id=enhancement_id,
+                        section_name=section_name,
+                        content=result.content,
+                        db=db
+                    )
+                    
+                    if save_success:
+                        successful_enhancements += 1
+                        logger.info(f"✅ Enhanced and saved section {section_name} ({i}/{total_sections})")
+                    else:
+                        logger.error(f"❌ Failed to save enhanced section {section_name}")
+                else:
+                    logger.error(f"❌ Failed to enhance section {section_name}: {result.error}")
+                
+                # Small delay between calls to prevent overwhelming the AI service
+                await asyncio.sleep(1)
+                
+            except Exception as section_error:
+                logger.error(f"Error processing section {section_name}: {str(section_error)}")
+                continue
+        
+        # Update final status
+        if successful_enhancements == total_sections:
+            enhancement_service.update_enhancement_status(
+                enhancement_id=enhancement_id,
+                status="completed",
+                db=db
+            )
+            logger.info(f"✅ Enhancement workflow completed successfully for {enhancement_id}")
+            logger.info(f"Enhanced {successful_enhancements}/{total_sections} sections")
+        else:
+            enhancement_service.update_enhancement_status(
+                enhancement_id=enhancement_id,
+                status="partial",
+                db=db,
+                error=f"Only {successful_enhancements}/{total_sections} sections enhanced successfully"
+            )
+            logger.warning(f"⚠️ Enhancement partially completed: {successful_enhancements}/{total_sections} sections")
+            
+    except Exception as e:
+        error_msg = str(e)
+        logger.error(f"Enhancement workflow failed for {enhancement_id}: {error_msg}")
+        
+        # Update database with error status
+        try:
+            if db:
+                enhancement_service.update_enhancement_status(
+                    enhancement_id=enhancement_id,
+                    status="error",
+                    db=db,
+                    error=error_msg
+                )
+        except Exception as db_err:
+            logger.error(f"Failed to update error status: {db_err}")
+        
+        raise  # Re-raise for ARQ retry handling
+        
+    finally:
+        if db:
+            try:
+                db.close()
+            except Exception as close_err:
+                logger.warning(f"Error closing database: {close_err}")
+
+
 # ARQ Worker Settings
 class WorkerSettings:
-    functions = [generate_strategy, research_only_workflow, strategy_only_workflow]
+    functions = [generate_strategy, research_only_workflow, strategy_only_workflow, enhance_strategy_workflow]
     redis_settings = RedisSettings.from_dsn(settings.REDIS_URL)
     job_timeout = settings.ARQ_JOB_TIMEOUT
     max_tries = settings.ARQ_MAX_TRIES

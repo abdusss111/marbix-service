@@ -45,7 +45,8 @@ class StrategyGeneratorAgent:
         request_data: Dict[str, Any],
         research_output: Dict[str, Any],
         request_id: str,
-        prompt_name: str
+        prompt_name: str,
+        system_prompt_override: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Generate comprehensive marketing strategy using Claude.
@@ -68,13 +69,17 @@ class StrategyGeneratorAgent:
                     "error": "Invalid research output provided"
                 }
             
-            # Get strategy prompt from database
-            strategy_prompt = self._get_strategy_prompt(prompt_name, request_data, research_output)
-            if not strategy_prompt:
-                return {
-                    "success": False,
-                    "error": "Strategy prompt not found in database"
-                }
+            # Get strategy prompt from database or use override
+            if system_prompt_override:
+                strategy_prompt = system_prompt_override
+                logger.info(f"Using system prompt override for {request_id}")
+            else:
+                strategy_prompt = self._get_strategy_prompt(prompt_name, request_data, research_output)
+                if not strategy_prompt:
+                    return {
+                        "success": False,
+                        "error": "Strategy prompt not found in database"
+                    }
             
             # Generate strategy using Claude
             strategy_content = await self._make_strategy_request(strategy_prompt, research_output)
@@ -268,7 +273,8 @@ async def generate_strategy_async(
     research_output: Dict[str, Any],
     request_id: str,
     prompt_name: str,
-    model_name: str = "claude-sonnet-4-20250514"
+    model_name: str = "claude-sonnet-4-20250514",
+    system_prompt_override: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Convenience function for generating strategies asynchronously using Claude.
@@ -285,4 +291,4 @@ async def generate_strategy_async(
         Generated strategy results
     """
     agent = StrategyGeneratorAgent(db, model_name)
-    return await agent.generate_strategy(request_data, research_output, request_id, prompt_name)
+    return await agent.generate_strategy(request_data, research_output, request_id, prompt_name, system_prompt_override)

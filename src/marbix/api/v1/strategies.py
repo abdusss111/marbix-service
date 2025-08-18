@@ -3,10 +3,20 @@ from sqlalchemy.orm import Session
 from marbix.core.deps import get_current_user, get_db
 from marbix.models.user import User
 from marbix.schemas.strategy import StrategyListItem, StrategyItem
+from marbix.schemas.enhanced_strategy import (
+    EnhancementRequest, 
+    EnhancementResponse, 
+    EnhancedStrategyResponse
+)
 from marbix.models.make_request import MakeRequest
+from marbix.services.enhancement_service import enhancement_service
+from marbix.core.config import settings
+from arq import create_pool
 from typing import List
+import logging
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 @router.get("/strategies", response_model=List[StrategyListItem])
 async def get_user_strategies(
@@ -83,3 +93,108 @@ async def get_strategy_by_id(
         result=strategy.result or "",
         sources=strategy.sources or ""
     )
+
+@router.post("/strategies/{strategy_id}/enhance", response_model=EnhancementResponse)
+async def enhance_strategy(
+    strategy_id: str,
+    request: EnhancementRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Enhance a strategy with 9 detailed sections using AI generation.
+    
+    Flow:
+    1. Validate original strategy exists and is completed
+    2. Create enhancement record
+    3. Queue enhancement worker job 
+    4. Return enhancement ID for tracking
+    """
+    try:
+        logger.info(f"Enhancement request for strategy {strategy_id} by user {current_user.id}")
+        
+        # 1. Validate original strategy (using request_id field)
+        original_strategy = db.query(MakeRequest).filter(
+            MakeRequest.request_id == strategy_id,
+            MakeRequest.user_id == current_user.id
+        ).first()
+        
+        if not original_strategy:
+            raise HTTPException(status_code=404, detail="Strategy not found")
+        
+        if original_strategy.status != "completed":
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Strategy must be completed before enhancement (current status: {original_strategy.status})"
+            )
+        
+        if not original_strategy.result:
+            raise HTTPException(status_code=400, detail="Strategy has no content to enhance")
+        
+        # 2. Create enhancement record (using request_id for foreign key)
+        enhancement = enhancement_service.create_enhancement_record(
+            original_strategy_id=original_strategy.request_id,  # Use request_id
+            user_id=current_user.id,
+            db=db
+        )
+        
+        # 3. Queue enhancement worker job
+        try:
+            redis_pool = await create_pool(settings.REDIS_URL)
+            await redis_pool.enqueue_job(
+                "enhance_strategy_workflow",
+                enhancement_id=enhancement.id,
+                strategy_id=original_strategy.request_id,  # Use request_id
+                user_id=current_user.id
+            )
+            await redis_pool.close()
+            logger.info(f"Enhancement job queued for {enhancement.id}")
+            
+        except Exception as queue_error:
+            logger.error(f"Failed to queue enhancement job: {queue_error}")
+            # Update enhancement status to error
+            enhancement_service.update_enhancement_status(
+                enhancement.id, 
+                "error", 
+                db, 
+                error=f"Failed to queue job: {str(queue_error)}"
+            )
+            raise HTTPException(status_code=500, detail="Failed to start enhancement process")
+        
+        # 4. Return enhancement response
+        return EnhancementResponse(
+            enhancement_id=enhancement.id,
+            original_strategy_id=strategy_id,  # Return external request_id
+            status=enhancement.status,
+            message="Strategy enhancement started. This will take a few minutes to complete.",
+            created_at=enhancement.created_at
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Enhancement request failed for strategy {strategy_id}: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@router.get("/strategies/{strategy_id}/enhancement/{enhancement_id}", response_model=EnhancedStrategyResponse)
+async def get_enhanced_strategy(
+    strategy_id: str,
+    enhancement_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get enhanced strategy by enhancement ID"""
+    enhancement = enhancement_service.get_enhancement_by_id(enhancement_id, db)
+    
+    if not enhancement:
+        raise HTTPException(status_code=404, detail="Enhancement not found")
+    
+    if enhancement.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    # Validate strategy_id matches (compare with original strategy's request_id)
+    original_strategy = enhancement_service.get_strategy_by_id(enhancement.original_strategy_id, db)
+    if not original_strategy or original_strategy.request_id != strategy_id:
+        raise HTTPException(status_code=400, detail="Enhancement does not belong to this strategy")
+    
+    return EnhancedStrategyResponse.from_orm(enhancement)
