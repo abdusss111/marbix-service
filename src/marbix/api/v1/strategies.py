@@ -140,7 +140,9 @@ async def enhance_strategy(
         
         # 3. Queue enhancement worker job
         try:
-            redis_pool = await create_pool(settings.REDIS_URL)
+            from arq.connections import RedisSettings
+            redis_settings = RedisSettings.from_dsn(settings.REDIS_URL)
+            redis_pool = await create_pool(redis_settings)
             await redis_pool.enqueue_job(
                 "enhance_strategy_workflow",
                 enhancement_id=enhancement.id,
