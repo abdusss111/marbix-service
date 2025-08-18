@@ -171,12 +171,17 @@ Follow the enhancement instructions carefully and provide a detailed, improved v
             user_message = f"{current_section}\n\n{prompt_record.content}"
             
             # 4. Call strategy generation agent
-            fake_business_context = {"enhancement_mode": True}  # Minimal context since we're enhancing
-            fake_research_output = user_message  # Use the section + prompt as "research"
+            fake_request_data = {"enhancement_mode": True}  # Minimal context since we're enhancing
+            fake_research_output = {
+                "success": True,
+                "response": user_message,  # Use the section + prompt as "research"
+                "sources": [],
+                "model_used": "enhancement_mode"
+            }
             
             result = await generate_strategy_async(
                 db=db,
-                business_context=fake_business_context,
+                request_data=fake_request_data,
                 research_output=fake_research_output,
                 request_id=enhancement_id,
                 prompt_name=prompt_type.value,

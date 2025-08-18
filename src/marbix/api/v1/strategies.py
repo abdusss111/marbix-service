@@ -155,9 +155,10 @@ async def enhance_strategy(
         except Exception as queue_error:
             logger.error(f"Failed to queue enhancement job: {queue_error}")
             # Update enhancement status to error
+            from marbix.models.enhanced_strategy import EnhancementStatus
             enhancement_service.update_enhancement_status(
                 enhancement.id, 
-                "error", 
+                EnhancementStatus.ERROR, 
                 db, 
                 error=f"Failed to queue job: {str(queue_error)}"
             )

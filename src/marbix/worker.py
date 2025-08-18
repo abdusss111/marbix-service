@@ -13,6 +13,7 @@ from marbix.services.enhancement_service import enhancement_service
 from marbix.agents.researcher.researcher_agent import conduct_research_async
 from marbix.agents.strategy_generator.strategy_agent import generate_strategy_async
 from marbix.schemas.enhanced_strategy import EnhancementPromptType
+from marbix.models.enhanced_strategy import EnhancementStatus
 
 # Configure logging
 logging.basicConfig(
@@ -60,8 +61,9 @@ async def generate_strategy(ctx, request_id: str, user_id: str, request_data: Di
         if research_result.get("sources"):
             sources_text = "\n".join(research_result["sources"][:50])
             try:
-                await make_service.update_request_sources(
+                make_service.update_request_status(
                     request_id=request_id,
+                    status="processing",
                     sources=sources_text,
                     db=db
                 )
@@ -235,7 +237,7 @@ async def enhance_strategy_workflow(ctx, enhancement_id: str, strategy_id: str, 
         # Update status to processing
         enhancement_service.update_enhancement_status(
             enhancement_id=enhancement_id,
-            status="processing",
+            status=EnhancementStatus.PROCESSING,
             db=db
         )
         
@@ -297,7 +299,7 @@ async def enhance_strategy_workflow(ctx, enhancement_id: str, strategy_id: str, 
         if successful_enhancements == total_sections:
             enhancement_service.update_enhancement_status(
                 enhancement_id=enhancement_id,
-                status="completed",
+                status=EnhancementStatus.COMPLETED,
                 db=db
             )
             logger.info(f"✅ Enhancement workflow completed successfully for {enhancement_id}")
@@ -305,7 +307,7 @@ async def enhance_strategy_workflow(ctx, enhancement_id: str, strategy_id: str, 
         else:
             enhancement_service.update_enhancement_status(
                 enhancement_id=enhancement_id,
-                status="partial",
+                status=EnhancementStatus.PARTIAL,
                 db=db,
                 error=f"Only {successful_enhancements}/{total_sections} sections enhanced successfully"
             )
@@ -320,7 +322,7 @@ async def enhance_strategy_workflow(ctx, enhancement_id: str, strategy_id: str, 
             if db:
                 enhancement_service.update_enhancement_status(
                     enhancement_id=enhancement_id,
-                    status="error",
+                    status=EnhancementStatus.ERROR,
                     db=db,
                     error=error_msg
                 )
