@@ -17,7 +17,6 @@ class AdminStatsResponse(BaseModel):
 
 class UserSubscriptionManagement(BaseModel):
     """Schema for admin to manage user subscriptions"""
-    user_id: str
     subscription_status: SubscriptionStatusEnum
     admin_note: Optional[str] = None
 
