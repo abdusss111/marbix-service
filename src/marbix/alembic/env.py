@@ -8,6 +8,7 @@ from alembic import context
 from marbix.db.base import Base
 import marbix.models.user  # add any additional model modules here
 import marbix.models.make_request  # add any additional model modules here
+import marbix.models.prompt  # import prompt model so Alembic can detect it
 # 2) Alembic Config object, provides access to values from alembic.ini
 config = context.config
 

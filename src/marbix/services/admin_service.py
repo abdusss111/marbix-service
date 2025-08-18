@@ -4,9 +4,11 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 from passlib.context import CryptContext
-from marbix.models.user import User
+from marbix.models.user import User, SubscriptionStatus
 from marbix.models.make_request import MakeRequest
 from marbix.models.role import UserRole
+from marbix.schemas.user import SubscriptionStatusEnum
+from typing import Optional
 from datetime import datetime, timedelta
 from sqlalchemy import func
 
@@ -38,11 +40,23 @@ def generate_admin_jwt(admin: User) -> str:
     return jwt.encode(payload, JWT_SECRET, algorithm="HS256")
 
 
-def get_all_users(db: Session):
+def get_all_users(db: Session, subscription_status: Optional[SubscriptionStatusEnum] = None):
     """
-    Returns list of users (excluding admins).
+    Returns list of users (excluding admins) with optional subscription status filter.
     """
-    return db.query(User).order_by(desc(User.created_at)).all()
+    query = db.query(User).filter(User.role != UserRole.ADMIN)
+    
+    if subscription_status:
+        # Convert SubscriptionStatusEnum to SubscriptionStatus for database query
+        status_mapping = {
+            SubscriptionStatusEnum.FREE: SubscriptionStatus.FREE,
+            SubscriptionStatusEnum.PENDING_PRO: SubscriptionStatus.PENDING_PRO,
+            SubscriptionStatusEnum.PRO: SubscriptionStatus.PRO
+        }
+        db_status = status_mapping[subscription_status]
+        query = query.filter(User.subscription_status == db_status)
+    
+    return query.order_by(desc(User.created_at)).all()
 
 
 def get_user_by_id(user_id: str, db: Session):
@@ -72,6 +86,22 @@ def get_admin_statistics(db: Session):
     """
     # Total users (excluding admins)
     total_users = db.query(func.count(User.id)).filter(User.role != UserRole.ADMIN).scalar()
+    
+    # Subscription statistics
+    free_users = db.query(func.count(User.id)).filter(
+        User.role != UserRole.ADMIN,
+        User.subscription_status == SubscriptionStatus.FREE
+    ).scalar()
+    
+    pending_pro_users = db.query(func.count(User.id)).filter(
+        User.role != UserRole.ADMIN,
+        User.subscription_status == SubscriptionStatus.PENDING_PRO
+    ).scalar()
+    
+    pro_users = db.query(func.count(User.id)).filter(
+        User.role != UserRole.ADMIN,
+        User.subscription_status == SubscriptionStatus.PRO
+    ).scalar()
     
     # Total strategies
     total_strategies = db.query(func.count(MakeRequest.request_id)).join(User, MakeRequest.user_id == User.id).filter(User.role != UserRole.ADMIN).scalar()
@@ -111,5 +141,18 @@ def get_admin_statistics(db: Session):
         "total_strategies": total_strategies,
         "successful_strategies": successful_strategies,
         "failed_strategies": failed_strategies,
-        "processing_strategies": processing_strategies
+        "processing_strategies": processing_strategies,
+        "free_users": free_users,
+        "pending_pro_users": pending_pro_users,
+        "pro_users": pro_users
     }
+
+
+def get_users_by_subscription_status(db: Session, subscription_status: SubscriptionStatus):
+    """
+    Returns users filtered by specific subscription status.
+    """
+    return db.query(User).filter(
+        User.role != UserRole.ADMIN,
+        User.subscription_status == subscription_status
+    ).order_by(desc(User.created_at)).all()

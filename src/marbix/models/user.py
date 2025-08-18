@@ -6,6 +6,12 @@ from marbix.db.base import Base
 
 from sqlalchemy import Enum as SqlEnum
 from marbix.models.role import UserRole
+from enum import Enum
+
+class SubscriptionStatus(Enum):
+    FREE = "free"
+    PENDING_PRO = "pending-pro"
+    PRO = "pro"
 
 class User(Base):
     __tablename__ = "users"
@@ -17,3 +23,8 @@ class User(Base):
     password = Column(String, nullable=True)
     role = Column(SqlEnum(UserRole), default=UserRole.USER, nullable=False)
     created_at = Column(DateTime, nullable=False, default=datetime.now)
+    
+    # Subscription fields
+    subscription_status = Column(SqlEnum(SubscriptionStatus), default=SubscriptionStatus.FREE, nullable=False)
+    subscription_updated_at = Column(DateTime, nullable=True)
+    subscription_granted_by = Column(String, nullable=True)  # Admin ID who granted the subscription

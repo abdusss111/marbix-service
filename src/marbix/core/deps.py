@@ -8,7 +8,7 @@ from marbix.db.session import SessionLocal
 from marbix.core.config import settings
 from marbix.crud.user import get_user_by_id
 from marbix.schemas.user import UserOut
-from marbix.models.user import User
+from marbix.models.user import User, SubscriptionStatus
 from marbix.models.role import UserRole
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
@@ -75,3 +75,59 @@ async def get_current_admin(token: str = Depends(oauth2_scheme_admin), db: Sessi
 
     except PyJWTError:
         raise HTTPException(status_code=403, detail="Invalid token")
+
+
+async def get_current_pro_user(
+    current_user: User = Depends(get_current_user)
+) -> User:
+    """
+    Dependency to ensure the current user has PRO subscription.
+    Use this for endpoints that require PRO access.
+    """
+    if current_user.subscription_status != SubscriptionStatus.PRO:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="PRO subscription required to access this feature"
+        )
+    return current_user
+
+
+def require_subscription(required_status: SubscriptionStatus):
+    """
+    Factory function to create subscription requirement dependencies.
+    
+    Usage:
+    @router.get("/pro-feature")
+    def pro_feature(user: User = Depends(require_subscription(SubscriptionStatus.PRO))):
+        pass
+    """
+    async def subscription_dependency(
+        current_user: User = Depends(get_current_user)
+    ) -> User:
+        if current_user.subscription_status != required_status:
+            status_name = required_status.value.upper()
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"{status_name} subscription required to access this feature"
+            )
+        return current_user
+    
+    return subscription_dependency
+
+
+async def get_user_subscription_info(
+    current_user: User = Depends(get_current_user)
+) -> dict:
+    """
+    Dependency to get detailed subscription information for the current user.
+    Returns a dictionary with subscription details.
+    """
+    return {
+        "user_id": current_user.id,
+        "subscription_status": current_user.subscription_status.value,
+        "is_pro": current_user.subscription_status == SubscriptionStatus.PRO,
+        "is_free": current_user.subscription_status == SubscriptionStatus.FREE,
+        "is_pending": current_user.subscription_status == SubscriptionStatus.PENDING_PRO,
+        "subscription_updated_at": current_user.subscription_updated_at,
+        "subscription_granted_by": current_user.subscription_granted_by
+    }
