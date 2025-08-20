@@ -4,6 +4,7 @@ from datetime import datetime
 from marbix.core.deps import get_db, get_current_user
 from marbix.models.user import User, SubscriptionStatus
 from marbix.schemas.user import SubscriptionStatusResponse, SubscriptionStatusEnum
+from marbix.utils.telegram import send_to_telegram
 
 router = APIRouter()
 
@@ -37,6 +38,18 @@ def request_pro_subscription(
     
     db.commit()
     db.refresh(current_user)
+    
+    # Send Telegram notification to admins about new pro plan request
+    try:
+        send_to_telegram(
+            email=current_user.email,
+            name=current_user.name or "Unknown",
+            number=current_user.number or "Not provided",
+            date=datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+        )
+    except Exception as e:
+        # Log error but don't fail the request
+        print(f"Failed to send Telegram notification: {e}")
     
     return SubscriptionStatusResponse(
         success=True,

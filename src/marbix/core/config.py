@@ -48,6 +48,10 @@ class Settings(BaseSettings):
     WEBHOOK_URL: Optional[str] = Field(None, env="WEBHOOK_URL")
     MAKE_API_KEY: Optional[str] = Field(None, env="MAKE_API_KEY")
 
+    # Telegram notification settings
+    TELEGRAM_BOT_TOKEN: Optional[str] = Field(None, env="TELEGRAM_BOT_TOKEN")
+    TELEGRAM_GROUP_ID: Optional[str] = Field(None, env="TELEGRAM_GROUP_ID")
+
     # API base URL for callbacks
     API_BASE_URL: str = Field(
         "https://your-api.onrender.com",
