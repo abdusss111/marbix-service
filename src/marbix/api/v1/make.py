@@ -69,7 +69,7 @@ async def process_request(
            if user_plan == SubscriptionStatus.FREE:
                return ProcessingStatus(
                    request_id="",
-                   status="rejected",
+                   status="limit_exceeded",
                    message="You have reached the limit of 1 strategy for the free plan. Upgrade to Pro to create up to 10 strategies.",
                    created_at=datetime.utcnow(),
                    error="Strategy limit reached for free plan"
@@ -77,7 +77,7 @@ async def process_request(
            else:
                return ProcessingStatus(
                    request_id="",
-                   status="rejected", 
+                   status="limit_exceeded", 
                    message="You have reached the limit of 10 strategies for the Pro plan. Please contact support for assistance.",
                    created_at=datetime.utcnow(),
                    error="Strategy limit reached for pro plan"
@@ -91,7 +91,7 @@ async def process_request(
            )
            return ProcessingStatus(
                request_id="",
-               status="rejected",
+               status="already_in_progress",
                message="You already have a strategy generation in progress. Please wait for it to complete before starting a new one.",
                created_at=datetime.utcnow(),
                error="Strategy already in progress"
