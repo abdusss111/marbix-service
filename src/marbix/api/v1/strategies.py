@@ -81,10 +81,8 @@ async def get_strategy_by_id(
 
     data = strategy.request_data or {}
     
-    # Parse sources from database text and return as array
-    sources_array = []
-    if strategy.sources:
-        sources_array = [line.strip() for line in strategy.sources.split('\n') if line.strip()]
+    # Sources are already stored as JSON array in database
+    sources_array = strategy.sources or []
     
     return StrategyItem(
         request_id=strategy.request_id,

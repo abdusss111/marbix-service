@@ -14,7 +14,7 @@ class MakeRequest(Base):
     error = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     completed_at = Column(DateTime(timezone=True), nullable=True)
-    sources = Column(Text, nullable=True)
+    sources = Column(JSON, nullable=True)  # Store as JSON array of strings
     
     # NEW: Add retry tracking
     retry_count = Column(Integer, default=0)

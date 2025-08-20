@@ -56,18 +56,18 @@ async def generate_strategy(ctx, request_id: str, user_id: str, request_data: Di
             logger.error(f"Research failed for {request_id}: {error_msg}")
             raise Exception(f"Research failed: {error_msg}")
 
-        # Step 2: Update sources
-        sources_text = ""
+        # Step 2: Update sources as JSON array
+        sources_array = []
         if research_result.get("sources"):
-            sources_text = "\n".join(research_result["sources"][:50])
+            sources_array = research_result["sources"][:50]  # Limit to 50 sources
             try:
                 make_service.update_request_status(
                     request_id=request_id,
                     status="processing",
-                    sources=sources_text,
+                    sources=sources_array,  # Store as JSON array
                     db=db
                 )
-                logger.info(f"Sources updated for {request_id}")
+                logger.info(f"Sources updated for {request_id}: {len(sources_array)} URLs")
             except Exception as e:
                 logger.warning(f"Failed to update sources: {e}")
 
