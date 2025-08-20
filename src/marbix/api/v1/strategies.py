@@ -198,9 +198,7 @@ async def get_latest_enhanced_strategy(
     if not enhancement:
         raise HTTPException(status_code=404, detail="No enhancement found for this strategy")
     
-            return EnhancedStrategyResponse.from_orm(enhancement)
-
-
+    return EnhancedStrategyResponse.from_orm(enhancement)
 
 
 @router.get("/strategies/{strategy_id}/enhancement/{enhancement_id}", response_model=EnhancedStrategyResponse)
