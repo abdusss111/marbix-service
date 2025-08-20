@@ -213,7 +213,8 @@ async def strategy_only_workflow(ctx, request_id: str, user_id: str, request_dat
 
 async def enhance_strategy_workflow(ctx, enhancement_id: str, strategy_id: str, user_id: str, **kwargs):
     """
-    ENHANCEMENT WORKFLOW: Process strategy enhancement with 9 separate AI calls
+    ENHANCEMENT WORKFLOW: Process strategy enhancement with 9 sequential AI calls
+    Each section depends on previous sections being enhanced
     """
     db = None
     try:
@@ -260,20 +261,22 @@ async def enhance_strategy_workflow(ctx, enhancement_id: str, strategy_id: str, 
         successful_enhancements = 0
         total_sections = len(enhancement_sections)
         
-        # Process all enhancement sections IN PARALLEL for 9x speed boost
-        logger.info(f"Starting parallel enhancement of {total_sections} sections")
+        # Process enhancement sections SEQUENTIALLY - each depends on previous
+        logger.info(f"Starting sequential enhancement of {total_sections} sections")
         
-        async def enhance_single_section(section_name: str, prompt_type):
-            """Helper function to enhance a single section"""
+        # Start with the original strategy text
+        current_strategy_text = strategy_text
+        
+        for i, (section_name, prompt_type) in enumerate(enhancement_sections, 1):
             try:
-                logger.info(f"🚀 Starting parallel enhancement: {section_name}")
+                logger.info(f"🚀 Processing section {i}/{total_sections}: {section_name}")
                 
-                # Enhance this specific section
+                # Enhance this specific section using current strategy text
                 result = await enhancement_service.enhance_strategy_section(
                     enhancement_id=enhancement_id,
                     section_name=section_name,
                     prompt_type=prompt_type,
-                    original_strategy=strategy_text,
+                    original_strategy=current_strategy_text,  # Use updated strategy
                     db=db
                 )
                 
@@ -288,34 +291,24 @@ async def enhance_strategy_workflow(ctx, enhancement_id: str, strategy_id: str, 
                     
                     if save_success:
                         logger.info(f"✅ Enhanced and saved section {section_name}")
-                        return True
+                        successful_enhancements += 1
+                        
+                        # Update the strategy text for the next section
+                        # Replace the original section with the enhanced version
+                        current_strategy_text = enhancement_service.update_strategy_with_enhanced_section(
+                            original_strategy=current_strategy_text,
+                            section_number=i,
+                            enhanced_content=result.content
+                        )
+                        
+                        logger.info(f"📝 Updated strategy text for next section ({len(current_strategy_text)} chars)")
                     else:
                         logger.error(f"❌ Failed to save enhanced section {section_name}")
-                        return False
                 else:
                     logger.error(f"❌ Failed to enhance section {section_name}: {result.error}")
-                    return False
                 
             except Exception as section_error:
                 logger.error(f"Error processing section {section_name}: {str(section_error)}")
-                return False
-        
-        # Execute all sections in parallel using asyncio.gather
-        tasks = [
-            enhance_single_section(section_name, prompt_type) 
-            for section_name, prompt_type in enhancement_sections
-        ]
-        
-        # Wait for all sections to complete in parallel
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        
-        # Count successful enhancements
-        for i, result in enumerate(results):
-            section_name = enhancement_sections[i][0]
-            if isinstance(result, Exception):
-                logger.error(f"❌ Exception in section {section_name}: {result}")
-            elif result is True:
-                successful_enhancements += 1
         
         # Update final status
         if successful_enhancements == total_sections:

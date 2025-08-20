@@ -121,8 +121,8 @@ class EnhancementService:
         
         Flow:
         1. Get prompt from database by prompt_type name
-        2. Extract the relevant section from original strategy
-        3. Use full strategy as system prompt
+        2. Extract the relevant section from current strategy (which may include enhanced sections)
+        3. Use current strategy as system prompt (includes previously enhanced sections)
         4. Call generate_strategy_async with section content + prompt
         5. Return enhanced section content
         """
@@ -141,7 +141,7 @@ class EnhancementService:
                     error=error_msg
                 )
             
-            # 2. Extract relevant section from original strategy
+            # 2. Extract relevant section from current strategy
             section_mapping = {
                 EnhancementPromptType.MARKET_ANALYSIS: 1,
                 EnhancementPromptType.DRIVERS: 2,
@@ -165,20 +165,20 @@ class EnhancementService:
                     error=error_msg
                 )
             
-            # Extract current section content
+            # Extract current section content from the updated strategy
             current_section = EnhancementService.extract_strategy_section(original_strategy, section_number)
             
             # 3. Prepare context for AI generation
-            # Use full strategy as system context + current section + enhancement prompt
-            system_prompt = f"""You are enhancing a marketing strategy. Here is the full original strategy for context:
+            # Use current strategy as system context (includes previously enhanced sections)
+            system_prompt = f"""You are enhancing a marketing strategy. Here is the current strategy for context:
 
 {original_strategy}
 
 ---
 
-Focus on enhancing this specific section: {current_section}
+IMPORTANT: This strategy may contain sections that have already been enhanced. Focus on enhancing this specific section: {current_section}
 
-Follow the enhancement instructions carefully and provide a detailed, improved version of this section."""
+Follow the enhancement instructions carefully and provide a detailed, improved version of this section that is consistent with any previously enhanced sections."""
 
             user_message = f"{current_section}\n\n{prompt_record.content}"
             
@@ -274,6 +274,68 @@ Follow the enhancement instructions carefully and provide a detailed, improved v
             logger.error(f"Error saving enhanced section {section_name}: {e}")
             db.rollback()
             return False
+
+    @staticmethod
+    def update_strategy_with_enhanced_section(
+        original_strategy: str,
+        section_number: int,
+        enhanced_content: str
+    ) -> str:
+        """
+        Replace a specific section in the strategy text with its enhanced version.
+        
+        Args:
+            original_strategy: The current strategy text
+            section_number: The section number to replace (1-9)
+            enhanced_content: The enhanced content for this section
+            
+        Returns:
+            Updated strategy text with the enhanced section
+        """
+        try:
+            # Define section patterns based on the strategy format
+            section_patterns = {
+                1: r"(1\.\s*Анализ Рынка.*?)(?=2\.|$)",
+                2: r"(2\.\s*Драйверы Рынка.*?)(?=3\.|$)", 
+                3: r"(3\.\s*Анализ Конкурентов.*?)(?=4\.|$)",
+                4: r"(4\.\s*Customer Journey.*?)(?=5\.|$)",
+                5: r"(5\.\s*Анализ Продукта.*?)(?=6\.|$)",
+                6: r"(6\.\s*Коммуникационная Стратегия.*?)(?=7\.|$)",
+                7: r"(7\.\s*Команда.*?)(?=8\.|$)",
+                8: r"(8\.\s*Метрики и Контроль.*?)(?=9\.|$)",
+                9: r"(9\.\s*Следующие Шаги.*?)$"
+            }
+            
+            pattern = section_patterns.get(section_number)
+            if not pattern:
+                logger.error(f"Unknown section number: {section_number}")
+                return original_strategy
+                
+            # Find the section to replace
+            match = re.search(pattern, original_strategy, re.DOTALL | re.IGNORECASE)
+            if not match:
+                logger.warning(f"Could not find section {section_number} to replace")
+                return original_strategy
+            
+            # Get the section header (e.g., "1. Анализ Рынка")
+            section_header_match = re.match(r'(\d+\.\s*[^\\n]*)', match.group(1))
+            if section_header_match:
+                section_header = section_header_match.group(1)
+                # Replace the section content while keeping the header
+                replacement = f"{section_header}\n{enhanced_content}"
+            else:
+                # If we can't find the header, just use the enhanced content
+                replacement = enhanced_content
+            
+            # Replace the section in the original strategy
+            updated_strategy = re.sub(pattern, replacement, original_strategy, flags=re.DOTALL | re.IGNORECASE)
+            
+            logger.info(f"Successfully updated section {section_number} in strategy text")
+            return updated_strategy
+                
+        except Exception as e:
+            logger.error(f"Error updating strategy with enhanced section {section_number}: {e}")
+            return original_strategy
 
 # Global service instance
 enhancement_service = EnhancementService()
