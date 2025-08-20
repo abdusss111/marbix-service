@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends, Body
 from sqlalchemy.orm import Session
 from marbix.core.deps import get_current_user, get_db
-from marbix.models.user import User
+from marbix.models.user import User, SubscriptionStatus
 from marbix.schemas.strategy import StrategyListItem, StrategyItem
 from marbix.schemas.enhanced_strategy import (
     EnhancementRequest, 
@@ -117,7 +117,18 @@ async def enhance_strategy(
     try:
         logger.info(f"Enhancement request for strategy {strategy_id} by user {current_user.id}")
         
-        # 1. Validate original strategy (using request_id field)
+        # 1. PRO PLAN VALIDATION - Only pro users can enhance strategies
+        if current_user.subscription_status != SubscriptionStatus.PRO:
+            logger.warning(
+                f"User {current_user.id} ({current_user.subscription_status.value}) "
+                f"attempted to enhance strategy. Pro plan required."
+            )
+            raise HTTPException(
+                status_code=403, 
+                detail="Strategy enhancement requires a Pro subscription. Upgrade your plan to access this feature."
+            )
+        
+        # 2. Validate original strategy (using request_id field)
         original_strategy = db.query(MakeRequest).filter(
             MakeRequest.request_id == strategy_id,
             MakeRequest.user_id == current_user.id
@@ -196,7 +207,39 @@ async def get_latest_enhanced_strategy(
     if not enhancement:
         raise HTTPException(status_code=404, detail="No enhancement found for this strategy")
     
-    return EnhancedStrategyResponse.from_orm(enhancement)
+            return EnhancedStrategyResponse.from_orm(enhancement)
+
+
+@router.get("/strategy-limits")
+async def get_strategy_limits(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get user's current strategy count and plan limits"""
+    try:
+        # Count completed strategies
+        completed_count = db.query(MakeRequest).filter(
+            MakeRequest.user_id == current_user.id,
+            MakeRequest.status == "completed"
+        ).count()
+        
+        # Get user's plan and limits
+        user_plan = current_user.subscription_status
+        max_strategies = 10 if user_plan == SubscriptionStatus.PRO else 1
+        
+        return {
+            "user_id": current_user.id,
+            "subscription_plan": user_plan.value,
+            "current_strategies": completed_count,
+            "max_strategies": max_strategies,
+            "remaining_strategies": max(0, max_strategies - completed_count),
+            "can_create_more": completed_count < max_strategies,
+            "can_enhance": user_plan == SubscriptionStatus.PRO
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting strategy limits for user {current_user.id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve strategy limits")
 
 
 @router.get("/strategies/{strategy_id}/enhancement/{enhancement_id}", response_model=EnhancedStrategyResponse)

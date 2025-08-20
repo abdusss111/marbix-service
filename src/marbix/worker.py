@@ -86,16 +86,17 @@ async def generate_strategy(ctx, request_id: str, user_id: str, request_data: Di
             logger.error(f"Strategy generation failed for {request_id}: {error_msg}")
             raise Exception(f"Strategy generation failed: {error_msg}")
 
-        # Step 4: Save final result
+        # Step 4: Save final result with sources preserved
         logger.info(f"Saving completed strategy for {request_id}")
         try:
             make_service.update_request_status(
                 request_id=request_id,
                 status="completed",
                 result=strategy_result["strategy"],
+                sources=sources_array,  # Preserve sources when saving final result
                 db=db
             )
-            logger.info(f"✅ Strategy generation completed successfully for {request_id}")
+            logger.info(f"✅ Strategy generation completed successfully for {request_id} with {len(sources_array)} sources")
 
         except Exception as db_error:
             logger.error(f"Failed to save strategy: {db_error}")

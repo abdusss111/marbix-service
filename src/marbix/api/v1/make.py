@@ -17,7 +17,8 @@ from marbix.schemas.make_integration import (
 )
 from marbix.schemas.strategy import SourcesCallbackRequest
 from marbix.services.make_service import make_service
-from marbix.models.user import User
+from marbix.models.user import User, SubscriptionStatus
+from marbix.models.make_request import MakeRequest
 from datetime import datetime
 import uuid
 
@@ -36,7 +37,67 @@ async def process_request(
    try:
        logger.info(f"Processing strategy request from user {current_user.id}")
 
-       # 1. CONTENT FILTERING - Check business data first
+       # 1. USER PLAN VALIDATION - Check strategy limits before content filtering
+       user_strategy_count = db.query(MakeRequest).filter(
+           MakeRequest.user_id == current_user.id,
+           MakeRequest.status == "completed"
+       ).count()
+       
+       # Check for strategies in progress
+       in_progress_count = db.query(MakeRequest).filter(
+           MakeRequest.user_id == current_user.id,
+           MakeRequest.status.in_(["requested", "processing"])
+       ).count()
+       
+       # Get user's subscription plan
+       user_plan = current_user.subscription_status
+       max_strategies = 10 if user_plan == SubscriptionStatus.PRO else 1
+       
+       # Log user's current status
+       logger.info(
+           f"User {current_user.id} ({user_plan.value}): "
+           f"{user_strategy_count} completed, {in_progress_count} in progress, "
+           f"limit: {max_strategies}"
+       )
+       
+       if user_strategy_count >= max_strategies:
+           logger.warning(
+               f"User {current_user.id} ({user_plan.value}) has {user_strategy_count} strategies. "
+               f"Limit: {max_strategies}. Rejecting request."
+           )
+           
+           if user_plan == SubscriptionStatus.FREE:
+               return ProcessingStatus(
+                   request_id="",
+                   status="rejected",
+                   message="You have reached the limit of 1 strategy for the free plan. Upgrade to Pro to create up to 10 strategies.",
+                   created_at=datetime.utcnow(),
+                   error="Strategy limit reached for free plan"
+               )
+           else:
+               return ProcessingStatus(
+                   request_id="",
+                   status="rejected", 
+                   message="You have reached the limit of 10 strategies for the Pro plan. Please contact support for assistance.",
+                   created_at=datetime.utcnow(),
+                   error="Strategy limit reached for pro plan"
+               )
+       
+       # Check if user already has a strategy in progress
+       if in_progress_count > 0:
+           logger.warning(
+               f"User {current_user.id} already has {in_progress_count} strategy(ies) in progress. "
+               f"Rejecting new request."
+           )
+           return ProcessingStatus(
+               request_id="",
+               status="rejected",
+               message="You already have a strategy generation in progress. Please wait for it to complete before starting a new one.",
+               created_at=datetime.utcnow(),
+               error="Strategy already in progress"
+           )
+
+       # 2. CONTENT FILTERING - Check business data
        filter_result = await content_filter_service.check_business_request(request.dict())
 
        # 2. Handle filter service errors gracefully
