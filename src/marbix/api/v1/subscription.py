@@ -58,7 +58,8 @@ def get_subscription_status(
         SubscriptionStatus.PENDING_PRO: SubscriptionStatusEnum.PENDING_PRO,
         SubscriptionStatus.PRO: SubscriptionStatusEnum.PRO
     }
-    
+
+    print(current_user.subscription_status)
     return SubscriptionStatusResponse(
         success=True,
         message="Subscription status retrieved successfully",

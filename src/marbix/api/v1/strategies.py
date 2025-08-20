@@ -80,6 +80,12 @@ async def get_strategy_by_id(
         raise HTTPException(status_code=404, detail="Strategy not found")
 
     data = strategy.request_data or {}
+    
+    # Parse sources from database text and return as array
+    sources_array = []
+    if strategy.sources:
+        sources_array = [line.strip() for line in strategy.sources.split('\n') if line.strip()]
+    
     return StrategyItem(
         request_id=strategy.request_id,
         business_type=data.get("business_type", ""),
@@ -91,7 +97,7 @@ async def get_strategy_by_id(
         created_at=strategy.created_at,
         completed_at=strategy.completed_at,
         result=strategy.result or "",
-        sources=strategy.sources or ""
+        sources=sources_array
     )
 
 @router.post("/strategies/{strategy_id}/enhance", response_model=EnhancementResponse)
@@ -192,7 +198,10 @@ async def get_latest_enhanced_strategy(
     if not enhancement:
         raise HTTPException(status_code=404, detail="No enhancement found for this strategy")
     
-    return EnhancedStrategyResponse.from_orm(enhancement)
+            return EnhancedStrategyResponse.from_orm(enhancement)
+
+
+
 
 @router.get("/strategies/{strategy_id}/enhancement/{enhancement_id}", response_model=EnhancedStrategyResponse)
 async def get_enhanced_strategy(

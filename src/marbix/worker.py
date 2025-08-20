@@ -127,6 +127,8 @@ async def generate_strategy(ctx, request_id: str, user_id: str, request_data: Di
                 logger.warning(f"Error closing database: {close_err}")
 
 
+
+
 async def research_only_workflow(ctx, request_id: str, user_id: str, request_data: Dict[str, Any], **kwargs):
     """Research-only workflow for testing"""
     db = None

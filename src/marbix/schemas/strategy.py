@@ -38,7 +38,7 @@ class StrategyItem(BaseModel):
     created_at: datetime
     completed_at: Optional[datetime]
     result: str
-    sources: Optional[str]
+    sources: Optional[List[str]]  # Array of source URLs
     
     class Config:
         from_attributes = True
