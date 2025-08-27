@@ -3,6 +3,9 @@ from typing import List, Optional
 from datetime import datetime
 from marbix.schemas.user import SubscriptionStatusEnum
 
+class AdminCommentRequest(BaseModel):
+    user_id: str
+    admin_comment: str
 
 class AdminStatsResponse(BaseModel):
     total_users: int

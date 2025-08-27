@@ -8,7 +8,7 @@ from marbix.schemas.strategy import StrategyItem
 from marbix.schemas.user import UserOut, SubscriptionStatusEnum
 from typing import List, Optional
 from marbix.models.make_request import MakeRequest
-from marbix.schemas.admin import AdminStatsResponse, UserSubscriptionManagement, SubscriptionManagementResponse
+from marbix.schemas.admin import AdminStatsResponse, UserSubscriptionManagement, SubscriptionManagementResponse, AdminCommentRequest
 from datetime import datetime
 router = APIRouter()
 
@@ -170,3 +170,19 @@ def revoke_user_subscription(
         updated_at=target_user.subscription_updated_at,
         updated_by=admin.id
     )
+
+@router.put("/comment", response_model=UserOut)
+def upsert_admin_comment(
+    payload: AdminCommentRequest,
+    admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    user = db.query(User).filter(User.id == payload.user_id).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    user.admin_comment = payload.admin_comment
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
