@@ -19,7 +19,7 @@ def login_admin(data: AdminLoginRequest, db: Session = Depends(get_db)):
     return {"access_token": token}
 
 
-@router.get("/users", response_model=List[UserOut])
+@router.get("/users", response_model=List[UserOutAdmin])
 def get_all_users(
     subscription_status: Optional[SubscriptionStatusEnum] = Query(None, description="Filter users by subscription status"),
     admin: User = Depends(get_current_admin), 
@@ -28,7 +28,7 @@ def get_all_users(
     return admin_service.get_all_users(db, subscription_status)
 
 
-@router.get("/users/{user_id}", response_model=UserOut)
+@router.get("/users/{user_id}", response_model=UserOutAdmin)
 def get_user_by_id(user_id: str, admin: User = Depends(get_current_admin), db: Session = Depends(get_db)):
     return admin_service.get_user_by_id(user_id, db)
 
@@ -67,7 +67,7 @@ def get_admin_statistics(admin: User = Depends(get_current_admin), db: Session =
     return admin_service.get_admin_statistics(db)
 
 
-@router.get("/users/pending-subscriptions", response_model=List[UserOut])
+@router.get("/users/pending-subscriptions", response_model=List[UserOutAdmin])
 def get_pending_subscriptions(admin: User = Depends(get_current_admin), db: Session = Depends(get_db)):
     """
     Get all users with pending PRO subscription requests.

@@ -13,6 +13,17 @@ class UserOut(BaseModel):
     email: str
     name: str
     number: Optional[str] = None
+    created_at: datetime
+    subscription_status: SubscriptionStatusEnum
+    subscription_updated_at: Optional[datetime] = None
+    subscription_granted_by: Optional[str] = None
+    model_config = ConfigDict(from_attributes=True)
+
+class UserOutAdmin(BaseModel):
+    id: str
+    email: str
+    name: str
+    number: Optional[str] = None
     admin_comment: Optional[str] = None
     created_at: datetime
     subscription_status: SubscriptionStatusEnum
