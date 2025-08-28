@@ -22,7 +22,8 @@ class UserOut(BaseModel):
 class UserOutComment(BaseModel):
     id: str
     email: str
-    comment: str
+    name: str
+    admin_comment: str
 
 class UserSubscriptionUpdate(BaseModel):
     """Schema for updating user subscription status"""
