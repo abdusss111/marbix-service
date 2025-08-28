@@ -177,15 +177,33 @@ def upsert_admin_comment(
     admin: User = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ):
+    # Find the user
     user = db.query(User).filter(User.id == payload.user_id).first()
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
+    # Update the comment
     user.admin_comment = payload.admin_comment
-    print(payload.admin_comment)
-    print(user.admin_comment)
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-    print(user.admin_comment)
+    
+    # Add some debugging
+    print(f"Setting admin_comment to: {payload.admin_comment}")
+    print(f"User ID: {payload.user_id}")
+    
+    try:
+        # Explicitly mark the object as modified (in case SQLAlchemy doesn't detect the change)
+        db.add(user)
+        db.commit()
+        
+        # Verify the change was persisted
+        db.refresh(user)
+        print(f"After commit, admin_comment is: {user.admin_comment}")
+        
+    except Exception as e:
+        db.rollback()
+        print(f"Database error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            detail="Failed to update comment"
+        )
+
     return user
