@@ -28,3 +28,5 @@ class User(Base):
     subscription_status = Column(SqlEnum(SubscriptionStatus), default=SubscriptionStatus.FREE, nullable=False)
     subscription_updated_at = Column(DateTime, nullable=True)
     subscription_granted_by = Column(String, nullable=True)  # Admin ID who granted the subscription
+
+    admin_comment = Column(String, nullable=True)
