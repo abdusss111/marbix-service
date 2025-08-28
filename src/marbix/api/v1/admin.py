@@ -182,7 +182,10 @@ def upsert_admin_comment(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
     user.admin_comment = payload.admin_comment
+    print(payload.admin_comment)
+    print(user.admin_comment)
     db.add(user)
     db.commit()
     db.refresh(user)
+    print(user.admin_comment)
     return user
