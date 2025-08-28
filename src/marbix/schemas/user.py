@@ -19,6 +19,11 @@ class UserOut(BaseModel):
     subscription_granted_by: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
 
+class UserOutComment(BaseModel):
+    id: str
+    email: str
+    comment: str
+
 class UserSubscriptionUpdate(BaseModel):
     """Schema for updating user subscription status"""
     subscription_status: SubscriptionStatusEnum

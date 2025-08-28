@@ -5,7 +5,7 @@ from marbix.core.deps import get_db, get_current_admin
 from marbix.services import admin_service
 from marbix.models.user import User, SubscriptionStatus
 from marbix.schemas.strategy import StrategyItem
-from marbix.schemas.user import UserOut, SubscriptionStatusEnum
+from marbix.schemas.user import UserOut, SubscriptionStatusEnum, UserOutComment
 from typing import List, Optional
 from marbix.models.make_request import MakeRequest
 from marbix.schemas.admin import AdminStatsResponse, UserSubscriptionManagement, SubscriptionManagementResponse, AdminCommentRequest
@@ -171,7 +171,7 @@ def revoke_user_subscription(
         updated_by=admin.id
     )
 
-@router.put("/comment", response_model=UserOut)
+@router.put("/comment", response_model=UserOutComment)
 def upsert_admin_comment(
     payload: AdminCommentRequest,
     admin: User = Depends(get_current_admin),
